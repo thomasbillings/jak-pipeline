@@ -152,6 +152,8 @@ UAT is a gate between Merge Queue and Done. Four strategies are supported; each 
 
 **TnT Finance specifics (Plan 4 install):** the `local-docker` strategy stands up a second Dockerized stack (separate Postgres) on the dev machine or NAS, listening on port 9670 (one port off the dev server's 9669). Production deploy is gated on the user transitioning UAT → Done — no auto-promote.
 
+**Canonical install path for `local-docker` strategy:** `<downstream>/docker/docker-compose.local-uat.yml`. This path is intentionally distinct from any existing `docker-compose.uat.yml` in the downstream project. TnT Finance already uses `docker/docker-compose.uat.yml` as a production UAT slot (separate hosted stack, different purpose). The local UAT (jak-pipeline gate, per-PR, ephemeral) installs at `docker-compose.local-uat.yml`; the production UAT remains at `docker-compose.uat.yml`. Future installs on other projects should use the same convention — if the project already has a `docker-compose.uat.yml`, install at `docker-compose.local-uat.yml`.
+
 ## 10. Storybook preview hosting (4)
 
 Storybook gets a per-PR preview so reviewers can poke at component changes before merge.
@@ -200,12 +202,12 @@ The pipeline produces four artefacts the Owner consults regularly.
 
 ## 13. Open items (decisions deferred to downstream plans)
 
-Tracked here so a future implementer can see at a glance what's still unsettled.
+The 5-plan delivery sequence (Plans 0-4) is now complete. Items below were not resolved by any plan in the sequence and are explicitly known-deferred. A new plan is required to address any of them.
 
-| Open item                                            | Resolved by                  |
-| ---------------------------------------------------- | ---------------------------- |
-| Cost-report owner                                    | Plan 4                       |
-| Failure-escalation transport (ntfy vs Slack vs both) | Plan 4                       |
+| Open item                                            | Status                  |
+| ---------------------------------------------------- | ----------------------- |
+| Cost-report owner and weekly cost report at `agents/_cost-report.md` | Known-deferred. The 5-plan sequence ends with the install (Plan 4); cost reporting was flagged as an Owner deliverable (§12) but not assigned to any plan. File a new plan to implement. |
+| Failure-escalation transport (ntfy vs Slack vs both) — any silent handoff >10 min fires a notification | Known-deferred. Transport choice was not made during the discovery panel; no plan in the 5-plan sequence picked it up. File a new plan to implement. |
 
 ## 14. Source provenance
 

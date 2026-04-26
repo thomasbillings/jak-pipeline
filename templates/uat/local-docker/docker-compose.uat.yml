@@ -1,0 +1,56 @@
+# jak-pipeline local UAT compose overlay.
+# This template stands up a SEPARATE stack from the dev environment.
+# Override UAT_PORT and UAT_POSTGRES_PORT to avoid port collisions with dev.
+#
+# Usage:
+#   docker compose -f docker-compose.uat.yml up -d
+#
+# Downstream install path: <downstream>/docker/docker-compose.local-uat.yml
+# (distinct from any existing docker-compose.uat.yml — see jak-pipeline architecture.md §9)
+
+name: jak-pipeline-local-uat
+
+services:
+  app:
+    # Override IMAGE_TAG in your downstream copy (defaults to latest built image).
+    image: "${APP_IMAGE:-app:latest}"
+    ports:
+      - "${UAT_PORT:-9670}:${APP_INTERNAL_PORT:-3000}"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/${UAT_DB_NAME:-app_uat}"
+      NODE_ENV: production
+      PORT: "${APP_INTERNAL_PORT:-3000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_INTERNAL_PORT:-3000}/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 10s
+    restart: "no"
+
+  postgres:
+    image: "postgres:16-alpine"
+    ports:
+      - "${UAT_POSTGRES_PORT:-5436}:5432"
+    environment:
+      POSTGRES_DB: "${UAT_DB_NAME:-app_uat}"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    # Named volume scoped to this UAT stack — distinct from dev Postgres data.
+    # An accidental docker compose down --volumes only removes UAT data, not dev data.
+    volumes:
+      - jak_pipeline_local_uat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+# Scoped volume — name matches stack name so cleanup is unambiguous.
+volumes:
+  jak_pipeline_local_uat_pgdata:
+    name: jak_pipeline_local_uat_pgdata

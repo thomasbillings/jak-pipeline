@@ -8,7 +8,7 @@ export default defineConfig({
     hookTimeout: 15000,
     coverage: {
       provider: 'v8',
-      include: ['scripts/jira/**/*.sh'],
+      include: ['scripts/jira/**/*.sh', 'scripts/uat/**/*.sh'],
       thresholds: {
         lines: 80
       }

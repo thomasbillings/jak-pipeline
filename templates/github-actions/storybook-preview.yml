@@ -1,0 +1,60 @@
+# jak-pipeline Storybook preview workflow template.
+# Deploys Storybook to Cloudflare Pages on every non-draft PR targeting main.
+#
+# Setup:
+#   1. Copy this file to <downstream>/.github/workflows/storybook-preview.yml
+#   2. Set CF_PAGES_PROJECT (below) to your Cloudflare Pages project name
+#   3. Add CF_API_TOKEN as a GitHub repo secret (Settings → Secrets → Actions)
+#      Value: a Cloudflare API token with Cloudflare Pages edit permission
+#
+# Per architecture.md §10: draft PRs are skipped (draft-skip rule).
+# The --only-changed flag cuts build time to ~30-40s for single-story tweaks.
+
+env:
+  # Cloudflare Pages project name. Override when copying to your downstream project.
+  CF_PAGES_PROJECT: "your-cf-pages-project"
+  # Package manager used in the downstream project. One of: npm | pnpm | yarn
+  # Note: bun is not supported by actions/setup-node cache — use npm/pnpm/yarn.
+  package_manager: "npm"
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  storybook-preview:
+    name: Storybook preview → Cloudflare Pages
+    runs-on: ubuntu-latest
+    # Skip draft PRs (draft-skip rule per jak-pipeline architecture.md §10).
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: ${{ env.package_manager }}
+
+      - name: Install dependencies
+        run: ${{ env.package_manager }} install
+
+      - name: Build Storybook (incremental with --only-changed)
+        run: ${{ env.package_manager == 'npm' && 'npx' || env.package_manager }} storybook build --only-changed -o storybook-static
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ vars.CF_ACCOUNT_ID }}
+          projectName: ${{ env.CF_PAGES_PROJECT }}
+          directory: storybook-static
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.head_ref }}
