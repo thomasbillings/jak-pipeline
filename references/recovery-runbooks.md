@@ -46,7 +46,7 @@ for line in open('agents/_jira-retry.json'):
 "
 
 # 4. Run doctor.sh for a full health summary
-DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/jira/doctor.sh
+DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/doctor.sh
 ```
 
 ### Recovery
@@ -54,7 +54,7 @@ DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/jira/doctor.sh
 **If Jira API is reachable but credentials are wrong:**
 1. Rotate the API token at `https://id.atlassian.com/manage-profile/security/api-tokens`.
 2. Update `.claude/jira/.env` with the new `JIRA_API_TOKEN`.
-3. Run `DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/jira/doctor.sh` — should exit 0.
+3. Run `DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/doctor.sh` — should exit 0.
 4. Run the drain manually: `DOWNSTREAM_ROOT=. bash scripts/jak-pipeline/jira/drain-retry-queue.sh`.
 
 **If a specific ticket is stuck (retry queue row):**

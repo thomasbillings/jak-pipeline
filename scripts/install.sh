@@ -147,6 +147,17 @@ PLAN3_ERRORS=()
 JIRA_SRC="${JAK_SKILL_ROOT}/scripts/jira"
 JIRA_DEST="${DOWNSTREAM_ROOT}/scripts/jak-pipeline/jira"
 mkdir -p "${JIRA_DEST}/lib"
+mkdir -p "${DOWNSTREAM_ROOT}/scripts/jak-pipeline"
+
+# Copy doctor.sh to scripts/jak-pipeline/ (project-level diagnostic tool)
+doctor_src="${JAK_SKILL_ROOT}/scripts/doctor.sh"
+if [ -f "$doctor_src" ]; then
+  cp "$doctor_src" "${DOWNSTREAM_ROOT}/scripts/jak-pipeline/doctor.sh"
+  chmod +x "${DOWNSTREAM_ROOT}/scripts/jak-pipeline/doctor.sh"
+  echo "[Plan 3] ✓ Installed scripts/jak-pipeline/doctor.sh"
+else
+  PLAN3_ERRORS+=("MISSING: $doctor_src")
+fi
 
 for script in transition.sh provision-board.sh drain-retry-queue.sh tick-extension.sh; do
   src="${JIRA_SRC}/${script}"
@@ -198,7 +209,7 @@ if [ ! -f "$TICK_SH" ]; then
 elif grep -qF "$TICK_SENTINEL" "$TICK_SH" 2>/dev/null; then
   echo "[Plan 3] ✓ tick.sh already registers jak_pipeline_jira_tick_pass (idempotent)"
 else
-  printf '\n# jak-pipeline: Jira tick pass\n. scripts/jak-pipeline/jira/tick-extension.sh\njak_pipeline_jira_tick_pass\n' >> "$TICK_SH"
+  printf '\n# jak-pipeline: Jira tick pass\n. "$(dirname "${BASH_SOURCE[0]}")/jak-pipeline/jira/tick-extension.sh"\njak_pipeline_jira_tick_pass\n' >> "$TICK_SH"
   echo "[Plan 3] ✓ Appended jak_pipeline_jira_tick_pass to tick.sh"
 fi
 

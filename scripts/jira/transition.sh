@@ -72,6 +72,11 @@ if [[ -n "$JIRA_ENV_FILE" ]] && [[ -f "$JIRA_ENV_FILE" ]]; then
   while IFS='=' read -r key value; do
     [[ "$key" =~ ^#.*$ ]] && continue
     [[ -z "$key" ]] && continue
+    # Strip surrounding quotes (single or double) from value
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
     # Only set if not already set in the environment
     if [[ -z "${!key:-}" ]]; then
       export "$key"="$value"
@@ -121,10 +126,21 @@ _append_retry_queue() {
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   FIRST_AT="${_FIRST_ATTEMPTED_AT:-$now}"
 
-  printf '%s\n' "$(printf '{"project":"%s","ticket":"%s","target_state":"%s","reason":"%s","first_attempted_at":"%s","last_attempted_at":"%s","attempt_count":%d,"last_error":"%s"}' \
+  local row
+  row="$(printf '{"project":"%s","ticket":"%s","target_state":"%s","reason":"%s","first_attempted_at":"%s","last_attempted_at":"%s","attempt_count":%d,"last_error":"%s"}' \
     "$PROJECT" "$TICKET" "$TARGET_STATE" "$REASON" "$FIRST_AT" "$now" "$_ATTEMPT_COUNT" \
-    "$(echo "$last_error" | sed 's/"/\\"/g')")" \
-    >> "$JIRA_RETRY_QUEUE"
+    "$(echo "$last_error" | sed 's/"/\\"/g')")"
+
+  local lock_file="${JIRA_RETRY_QUEUE%.json}.lock"
+  mkdir -p "$(dirname "$JIRA_RETRY_QUEUE")"
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock 9
+      printf '%s\n' "$row" >> "$JIRA_RETRY_QUEUE"
+    ) 9>"$lock_file" || printf '%s\n' "$row" >> "$JIRA_RETRY_QUEUE"
+  else
+    printf '%s\n' "$row" >> "$JIRA_RETRY_QUEUE"
+  fi
   echo "JIRA_RETRY: $TICKET → $TARGET_STATE queued for retry (attempt $_ATTEMPT_COUNT)" >&2
 }
 
@@ -155,12 +171,11 @@ _main() {
   fi
 
   local current_state
-  current_state="$(echo "$current_json" | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//'  || true)"
-
-  # Fallback: try status.name specifically
-  if [[ -z "$current_state" ]]; then
-    current_state="$(echo "$current_json" | grep -A2 '"status"' | grep '"name"' | head -1 | sed 's/.*"name":"\([^"]*\)".*/\1/' || true)"
-  fi
+  current_state="$(echo "$current_json" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(data.get('fields', {}).get('status', {}).get('name', ''))
+" 2>/dev/null || true)"
 
   # 1a. Already at target — skip
   if [[ "$current_state" == "$TARGET_STATE" ]]; then
@@ -182,11 +197,12 @@ _main() {
 
   if [[ -z "$transition_id" ]]; then
     # Try alternative JSON parsing
-    transition_id="$(echo "$transitions_json" | python3 -c "
-import sys, json
+    transition_id="$(echo "$transitions_json" | TARGET_STATE="$TARGET_STATE" python3 -c "
+import sys, json, os
 data = json.load(sys.stdin)
+target = os.environ['TARGET_STATE']
 for t in data.get('transitions', []):
-    if t.get('name') == '${TARGET_STATE}' or t.get('to', {}).get('name') == '${TARGET_STATE}':
+    if t.get('name') == target or t.get('to', {}).get('name') == target:
         print(t['id'])
         break
 " 2>/dev/null || true)"
