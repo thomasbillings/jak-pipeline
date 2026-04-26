@@ -85,8 +85,8 @@ export function makeMockDocker(
   } = opts;
 
   const healthJson = containerHealthy
-    ? JSON.stringify([{ Health: 'healthy' }])
-    : JSON.stringify([{ Health: 'starting' }]);
+    ? JSON.stringify([{ Service: 'app', Health: 'healthy' }])
+    : JSON.stringify([{ Service: 'app', Health: 'starting' }]);
 
   const script = [
     '#!/usr/bin/env bash',

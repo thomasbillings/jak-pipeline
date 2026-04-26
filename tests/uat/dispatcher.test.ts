@@ -45,6 +45,7 @@ describe('run.sh — strategy dispatcher (a2)', () => {
     const result = await runScript(DISPATCHER, [], {
       JAK_UAT_STRATEGY: 'local-docker',
       JAK_UAT_OVERLAY: overlayPath,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
     });
 
