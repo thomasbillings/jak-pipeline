@@ -50,9 +50,11 @@ describe('templates/phase-rollout-commits.md', () => {
 
   it('Day 14+ section includes guard for already-absent auto-update-prs.yml', () => {
     const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-    const day14Match = content.match(/Day 14\+[\s\S]*?(?=^##|\z)/m);
-    expect(day14Match).toBeTruthy();
-    const section = day14Match![0];
+    // Split on ## headings to find the Day 14+ section
+    const sections = content.split(/^## /m);
+    const day14Section = sections.find((s) => s.startsWith('Day 14+'));
+    expect(day14Section, 'Day 14+ section not found').toBeTruthy();
+    const section = 'Day 14+' + day14Section!;
     expect(section).toContain('auto-update-prs.yml');
     // Should have a guard (already absent / no-op style)
     expect(section).toMatch(/already absent|no-op|\[ -f/i);
