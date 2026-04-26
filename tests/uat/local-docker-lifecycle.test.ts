@@ -158,7 +158,7 @@ describe('local-docker-accept.sh (a5)', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('calls transition.sh with the ticket key and target state "Done"', async () => {
+  it('calls transition.sh with --project, ticket key, and target state "Done"', async () => {
     const result = await runScript(ACCEPT, ['SCRUM-42', overlay], {
       JAK_SKILL_ROOT: skillRoot,
       JAK_UAT_SCRIPTS_DIR: binDir,
@@ -166,6 +166,8 @@ describe('local-docker-accept.sh (a5)', () => {
     });
     expect(result.exitCode).toBe(0);
     const calls = fs.readFileSync(transitionLog, 'utf8');
+    expect(calls).toContain('--project');
+    expect(calls).toContain('SCRUM');
     expect(calls).toContain('SCRUM-42');
     expect(calls).toMatch(/[Dd]one/);
   });
@@ -206,11 +208,10 @@ describe('local-docker-accept.sh (a5)', () => {
       JAK_JIRA_RETRY_FILE: retryFile,
     });
 
-    if (fs.existsSync(retryFile)) {
-      const content = fs.readFileSync(retryFile, 'utf8');
-      expect(content).toContain('SCRUM-42');
-    }
-    // Stack teardown is the mandatory check; retry file is best-effort
+    // Retry file must exist and contain the ticket key
+    expect(fs.existsSync(retryFile)).toBe(true);
+    const content = fs.readFileSync(retryFile, 'utf8');
+    expect(content).toContain('SCRUM-42');
   });
 });
 
@@ -243,7 +244,7 @@ describe('local-docker-reject.sh (a6)', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('calls transition.sh with the ticket key and target state "PR Review"', async () => {
+  it('calls transition.sh with --project, ticket key, and target state "PR Review"', async () => {
     const result = await runScript(REJECT, ['SCRUM-7', overlay, 'does not meet AC'], {
       JAK_SKILL_ROOT: skillRoot,
       JAK_UAT_SCRIPTS_DIR: binDir,
@@ -252,6 +253,8 @@ describe('local-docker-reject.sh (a6)', () => {
     });
     expect(result.exitCode).toBe(0);
     const calls = fs.readFileSync(transitionLog, 'utf8');
+    expect(calls).toContain('--project');
+    expect(calls).toContain('SCRUM');
     expect(calls).toContain('SCRUM-7');
     expect(calls).toMatch(/PR Review/i);
   });

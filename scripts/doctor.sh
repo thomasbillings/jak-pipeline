@@ -292,6 +292,9 @@ fi
 # Plan 4 — verify UAT strategy, Docker overlay, Storybook workflow, CF secret.
 # ---------------------------------------------------------------------------
 
+# PLAN4_CHECK=1 runs ONLY Plan 4 checks (analogous to PLAN3_CHECK=1 for Plan 3).
+PLAN4_CHECK="${PLAN4_CHECK:-0}"
+
 PLAN4_PASS=true
 PLAN4_ERRORS=()
 
@@ -363,6 +366,14 @@ fi
 
 if [[ "$PLAN3_CHECK" == "1" ]]; then
   if $PLAN3_PASS; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
+if [[ "$PLAN4_CHECK" == "1" ]]; then
+  if $PLAN4_PASS; then
     exit 0
   else
     exit 1

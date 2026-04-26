@@ -23,9 +23,13 @@ TRANSITION_SH="${JAK_SKILL_ROOT}/scripts/jira/transition.sh"
 STOP_SH="${SCRIPT_DIR}/local-docker-stop.sh"
 GH_PR_NUMBER="${GH_PR_NUMBER:-}"
 
+# Extract project key from ticket (e.g. SCRUM-7 → SCRUM, GH-7 → GH)
+PROJECT="${TICKET%%-*}"
+
 # Transition UAT → PR Review (fix-forward path per architecture.md §9)
 if [ -f "$TRANSITION_SH" ]; then
   bash "$TRANSITION_SH" \
+    --project "$PROJECT" \
     --ticket "$TICKET" \
     --to "PR Review" \
     --reason "UAT rejected: $REASON" || true

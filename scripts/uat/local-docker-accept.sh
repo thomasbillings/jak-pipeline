@@ -21,10 +21,14 @@ JAK_SKILL_ROOT="${JAK_SKILL_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 TRANSITION_SH="${JAK_SKILL_ROOT}/scripts/jira/transition.sh"
 STOP_SH="${SCRIPT_DIR}/local-docker-stop.sh"
 
+# Extract project key from ticket (e.g. SCRUM-42 → SCRUM, GH-7 → GH)
+PROJECT="${TICKET%%-*}"
+
 # Best-effort Jira transition: UAT → Done
 JIRA_OK=1
 if [ -f "$TRANSITION_SH" ]; then
   bash "$TRANSITION_SH" \
+    --project "$PROJECT" \
     --ticket "$TICKET" \
     --to "Done" \
     --reason "UAT accepted" || JIRA_OK=0

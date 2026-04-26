@@ -13,7 +13,8 @@
 env:
   # Cloudflare Pages project name. Override when copying to your downstream project.
   CF_PAGES_PROJECT: "your-cf-pages-project"
-  # Package manager used in the downstream project. One of: npm | pnpm | yarn | bun
+  # Package manager used in the downstream project. One of: npm | pnpm | yarn
+  # Note: bun is not supported by actions/setup-node cache — use npm/pnpm/yarn.
   package_manager: "npm"
 
 on:
