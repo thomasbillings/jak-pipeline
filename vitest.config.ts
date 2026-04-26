@@ -4,5 +4,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-  },
+    coverage: {
+      provider: 'v8',
+      include: ['scripts/jira/**/*.sh'],
+      thresholds: {
+        lines: 80
+      }
+    }
+  }
 });
