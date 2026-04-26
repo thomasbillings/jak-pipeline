@@ -82,8 +82,13 @@ if matching is None:
 
 state = matching.get('state', '')
 body = matching.get('body', '') or ''
-m = re.search(r'BLOCKERS:\\s*(\\d+)', body)
-blockers = int(m.group(1)) if m else -1
+# Match the pr-reviewer canonical format: **Blockers (N)** (markdown bold)
+# Also accept legacy BLOCKERS: N format for backwards compatibility
+m = re.search(r'[*][*]Blockers\\s*[(](\\d+)[)][*][*]|BLOCKERS:\\s*(\\d+)', body, re.IGNORECASE)
+if m:
+    blockers = int(m.group(1) if m.group(1) is not None else m.group(2))
+else:
+    blockers = -1
 
 print(f'{state}|{blockers}')
 ")"
