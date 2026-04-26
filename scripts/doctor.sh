@@ -92,10 +92,83 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# TODO Plan 2 — verify .mergify.yml parses, queue conditions reference
-#   currently-defined CI checks, _label-log.jsonl is writable, the
-#   pr-reviewer agent declares the correct label-trust gate.
+# Plan 2 — Mergify config + label trust boundary
 # ---------------------------------------------------------------------------
+
+PLAN2_PASS=true
+PLAN2_ERRORS=()
+
+DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-$PWD}"
+JAK_SENTINEL="<!-- jak-pipeline:pr-reviewer-label-gate v1 -->"
+
+# (i) Verify .mergify.yml exists and parses as YAML
+MERGIFY_YML="${DOWNSTREAM_ROOT}/.mergify.yml"
+if [ ! -f "$MERGIFY_YML" ]; then
+  PLAN2_ERRORS+=("MISSING: $MERGIFY_YML — run install.sh to create it")
+  PLAN2_PASS=false
+else
+  if python3 -c "import yaml; yaml.safe_load(open('${MERGIFY_YML}'))" 2>/dev/null; then
+    echo "[Plan 2] ✓ .mergify.yml exists and parses as valid YAML"
+    if command -v mergify &>/dev/null; then
+      if mergify validate "$MERGIFY_YML" 2>/dev/null; then
+        echo "[Plan 2] ✓ mergify validate passed"
+      else
+        echo "[Plan 2] WARN: mergify validate failed for $MERGIFY_YML (check schema)" >&2
+      fi
+    fi
+  else
+    PLAN2_ERRORS+=("FAIL: $MERGIFY_YML does not parse as valid YAML")
+    PLAN2_PASS=false
+  fi
+fi
+
+# (ii) Verify .claude/agents/pr-reviewer.md contains label-gate sentinel comment
+PR_REVIEWER="${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md"
+if [ ! -f "$PR_REVIEWER" ]; then
+  PLAN2_ERRORS+=("MISSING: $PR_REVIEWER")
+  PLAN2_PASS=false
+elif grep -qF "$JAK_SENTINEL" "$PR_REVIEWER" 2>/dev/null; then
+  echo "[Plan 2] ✓ pr-reviewer.md contains label-gate sentinel"
+else
+  PLAN2_ERRORS+=("MISSING sentinel in $PR_REVIEWER — run install.sh to append overlay")
+  PLAN2_PASS=false
+fi
+
+# (iii) Verify agents/_label-log.jsonl is creatable (write-permission check)
+AGENTS_DIR="${DOWNSTREAM_ROOT}/agents"
+WRITE_TEST="${AGENTS_DIR}/.jak-doctor-write-test"
+mkdir -p "$AGENTS_DIR" 2>/dev/null || true
+if touch "$WRITE_TEST" 2>/dev/null; then
+  rm -f "$WRITE_TEST"
+  echo "[Plan 2] ✓ agents/ directory is writable"
+else
+  PLAN2_ERRORS+=("FAIL: cannot write to $AGENTS_DIR — check directory permissions")
+  PLAN2_PASS=false
+fi
+
+# (iv) Verify all three Plan-2 scripts exist and are executable
+JAK_SCRIPTS_DIR="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/scripts"
+for script in label-gate-decide.sh label-log-append.sh branch-ticket-check.sh; do
+  script_path="${JAK_SCRIPTS_DIR}/${script}"
+  if [ ! -f "$script_path" ]; then
+    PLAN2_ERRORS+=("MISSING: $script_path — run install.sh")
+    PLAN2_PASS=false
+  elif [ ! -x "$script_path" ]; then
+    PLAN2_ERRORS+=("NOT EXECUTABLE: $script_path — run chmod +x")
+    PLAN2_PASS=false
+  else
+    echo "[Plan 2] ✓ $script exists and is executable"
+  fi
+done
+
+if $PLAN2_PASS; then
+  echo "[Plan 2] ✓ All Plan 2 checks passed"
+else
+  echo "[Plan 2] ✗ Plan 2 checks failed:" >&2
+  for err in "${PLAN2_ERRORS[@]}"; do
+    echo "  - $err" >&2
+  done
+fi
 
 # ---------------------------------------------------------------------------
 # TODO Plan 3 — verify Jira credentials with a no-op read, confirm
@@ -109,7 +182,7 @@ fi
 #   Cloudflare Pages project (or chosen alternative) is reachable.
 # ---------------------------------------------------------------------------
 
-if $PLAN1_PASS; then
+if $PLAN1_PASS && $PLAN2_PASS; then
   exit 0
 else
   exit 1
