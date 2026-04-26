@@ -7,6 +7,7 @@ import { createStubJira, runScript, scriptPath, makeTempDir, makeJiraEnvFile, ty
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 
 const TICK_EXT = scriptPath('tick-extension.sh');
 
@@ -18,6 +19,9 @@ async function runDriftPass(opts: {
   prs: Array<{ number: number; branch: string; state: string; merged: boolean }>;
   jiraStates: Record<string, string>;
   driftFileContent?: Record<string, string>;
+  /** Called after default routes are set up — override specific routes for stateful tests. */
+  afterRouteSetup?: () => void;
+  backoffMs?: string;
 }): Promise<{ exitCode: number; stdout: string; stderr: string; driftFile: Record<string, string> | null; tickLog: string }> {
   const { stub, envFile, tmpDir, prs, jiraStates, driftFileContent } = opts;
 
@@ -93,6 +97,9 @@ fi
     });
   }
 
+  // Allow tests to override / augment routes after defaults
+  opts.afterRouteSetup?.();
+
   const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
     const child = spawn('bash', ['-c', `
       source "${TICK_EXT}" 2>/dev/null
@@ -106,7 +113,9 @@ fi
         JIRA_DRIFT_FILE: driftFilePath,
         JAK_TICK_LOG: tickLogPath,
         DOWNSTREAM_ROOT: tmpDir,
-        PATH: `${ghDir}:${process.env.PATH}`
+        PATH: `${ghDir}:${process.env.PATH}`,
+        JIRA_BACKOFF_SEED_MS: opts.backoffMs ?? '50',
+        JIRA_BACKOFF_CAP_MS: opts.backoffMs ?? '50'
       }
     });
 
@@ -177,11 +186,27 @@ describe('drift reconciliation (a10)', () => {
     // Pre-seed drift file with a timestamp > 10 min ago
     const oldTime = new Date(Date.now() - 12 * 60 * 1000).toISOString();
 
+    // Stateful stub: returns 'Ready to Dev' until a POST is received, then 'In Development'
+    let scrum3State = 'Ready to Dev';
+
     const result = await runDriftPass({
       stub, envFile, tmpDir,
       prs: [{ number: 3, branch: 'feat/SCRUM-3-feature', state: 'OPEN', merged: false }],
       jiraStates: { 'SCRUM-3': 'Ready to Dev' },
-      driftFileContent: { 'SCRUM-3': oldTime }
+      driftFileContent: { 'SCRUM-3': oldTime },
+      afterRouteSetup: () => {
+        // Override GET to be stateful
+        stub.setRoute('GET', '/rest/api/3/issue/SCRUM-3', (_req, res) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ fields: { status: { name: scrum3State } } }));
+        });
+        // POST transition updates state
+        stub.setRoute('POST', '/rest/api/3/issue/SCRUM-3/transitions', (_req, res) => {
+          scrum3State = 'In Development';
+          res.writeHead(204);
+          res.end();
+        });
+      }
     });
 
     expect(result.exitCode).toBe(0);
@@ -193,7 +218,7 @@ describe('drift reconciliation (a10)', () => {
     // Tick log should have JIRA_DRIFT: entry
     expect(result.tickLog).toMatch(/JIRA_DRIFT:/);
 
-    // Drift entry cleared
+    // Drift entry cleared on success
     if (result.driftFile !== null) {
       expect(Object.keys(result.driftFile)).not.toContain('SCRUM-3');
     }
@@ -202,19 +227,33 @@ describe('drift reconciliation (a10)', () => {
   it('(iv) Jira 3 states behind GitHub → 3 sequential transition.sh calls', async () => {
     const oldTime = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
+    // Stateful: PR Review → Merge Queue → UAT → Done (state advances on each POST)
+    const walkStates = ['PR Review', 'Merge Queue', 'UAT', 'Done'];
+    let stateIdx = 0;
+
     // PR is merged → Done expected; Jira is at PR Review (3 hops: Merge Queue → UAT → Done)
     const result = await runDriftPass({
       stub, envFile, tmpDir,
       prs: [{ number: 4, branch: 'feat/SCRUM-4-feature', state: 'MERGED', merged: true }],
       jiraStates: { 'SCRUM-4': 'PR Review' },
-      driftFileContent: { 'SCRUM-4': oldTime }
+      driftFileContent: { 'SCRUM-4': oldTime },
+      afterRouteSetup: () => {
+        stub.setRoute('GET', '/rest/api/3/issue/SCRUM-4', (_req, res) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ fields: { status: { name: walkStates[stateIdx] } } }));
+        });
+        stub.setRoute('POST', '/rest/api/3/issue/SCRUM-4/transitions', (_req, res) => {
+          stateIdx = Math.min(stateIdx + 1, walkStates.length - 1);
+          res.writeHead(204);
+          res.end();
+        });
+      }
     });
 
     expect(result.exitCode).toBe(0);
 
     const posts = stub.requests.filter((r) => r.method === 'POST' && r.url.includes('SCRUM-4'));
     // At least 3 POSTs for 3-hop walk (PR Review → Merge Queue → UAT → Done)
-    // Exact count ≥ 3
     expect(posts.length).toBeGreaterThanOrEqual(3);
   });
 

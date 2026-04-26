@@ -138,6 +138,7 @@ export function makeTempDir(): string {
 }
 
 export function makeJiraEnvFile(dir: string, overrides: Partial<Record<string, string>> = {}): string {
+  fs.mkdirSync(dir, { recursive: true });
   const envPath = path.join(dir, 'jira.env');
   const vars = {
     JIRA_BASE_URL: 'http://placeholder',

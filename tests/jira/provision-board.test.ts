@@ -36,21 +36,15 @@ describe('provision-board.sh — idempotent provisioning (a7)', () => {
   });
 
   it('creates 12 columns when board has 0 existing columns', async () => {
-    const created: string[] = [];
-
     stub.setRoute('GET', '/rest/agile/1.0/board/42/configuration', (_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ columnConfig: { columns: [] } }));
     });
 
-    stub.setRoute('POST', '/rest/agile/1.0/board/42/configuration/column', (req: http.IncomingMessage, res: http.ServerResponse) => {
-      let body = '';
-      req.on('data', (d: Buffer) => (body += d.toString()));
-      req.on('end', () => {
-        try { created.push(JSON.parse(body).name); } catch { /* ignore */ }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ id: Math.floor(Math.random() * 9999) }));
-      });
+    // Respond immediately — body already consumed by stub before handler fires.
+    stub.setRoute('POST', '/rest/agile/1.0/board/42/configuration/column', (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id: Math.floor(Math.random() * 9999) }));
     });
 
     const result = await runScript(SCRIPT, [
@@ -62,6 +56,13 @@ describe('provision-board.sh — idempotent provisioning (a7)', () => {
     });
 
     expect(result.exitCode).toBe(0);
+
+    // Extract created column names from recorded requests (stub reads body before handler fires)
+    const created = stub.requests
+      .filter((r) => r.method === 'POST')
+      .map((r) => { try { return JSON.parse(r.body).name as string; } catch { return null; } })
+      .filter(Boolean) as string[];
+
     expect(created.length).toBe(12);
     for (const state of CANONICAL_STATES) {
       expect(created).toContain(state);

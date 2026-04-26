@@ -25,12 +25,20 @@ set -euo pipefail
 #      build, the Storybook preview workflow exists in `.github/workflows/`,
 #      Cloudflare Pages project (or chosen alternative) is reachable.
 
+PLAN3_CHECK="${PLAN3_CHECK:-0}"
+
 PLAN1_PASS=true
 PLAN1_ERRORS=()
 
 # ---------------------------------------------------------------------------
-# Plan 1 checks — Mergify MCP server
+# Plan 1 checks — Mergify MCP server (skipped when PLAN3_CHECK=1)
 # ---------------------------------------------------------------------------
+
+if [[ "$PLAN3_CHECK" == "1" ]]; then
+  # Skip Plan 1 — caller only wants Plan 3 checks
+  PLAN1_PASS=true
+  MCP_DIR="."  # placeholder; not used
+else
 
 MCP_DIR="$(dirname "$0")/../mcp/mergify"
 MCP_DIR="$(cd "$MCP_DIR" && pwd)"
@@ -90,6 +98,8 @@ else
     echo "  - $err" >&2
   done
 fi
+
+fi  # end: if PLAN3_CHECK != 1
 
 # ---------------------------------------------------------------------------
 # Plan 2 — Mergify config + label trust boundary
@@ -171,10 +181,112 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# TODO Plan 3 — verify Jira credentials with a no-op read, confirm
+# Plan 3 — verify Jira credentials with a no-op read, confirm
 #   agents/_jira-retry.json is empty (or surface stuck items),
 #   confirm tick.sh's drift reconciliation pass is registered.
 # ---------------------------------------------------------------------------
+
+# When PLAN3_CHECK=1, skip Plan 1 results and only evaluate Plan 3.
+PLAN3_CHECK="${PLAN3_CHECK:-0}"
+
+PLAN3_PASS=true
+PLAN3_ERRORS=()
+
+DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-$PWD}"
+
+# Load Jira credentials from .claude/jira/.env
+JIRA_ENV_FILE="${DOWNSTREAM_ROOT}/.claude/jira/.env"
+if [ -f "$JIRA_ENV_FILE" ]; then
+  set +u
+  while IFS='=' read -r key value; do
+    [[ "$key" =~ ^#.*$ ]] && continue
+    [[ -z "$key" ]] && continue
+    if [ -z "${!key:-}" ]; then export "$key"="$value"; fi
+  done < "$JIRA_ENV_FILE"
+  set -u
+fi
+
+JIRA_BASE_URL="${JIRA_BASE_URL:-}"
+JIRA_EMAIL="${JIRA_EMAIL:-}"
+JIRA_API_TOKEN="${JIRA_API_TOKEN:-}"
+
+# (i) Verify Jira credentials via GET /rest/api/3/myself
+if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+  PLAN3_ERRORS+=("MISSING Jira credentials — set JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN in $JIRA_ENV_FILE")
+  PLAN3_PASS=false
+else
+  auth_header="Authorization: Basic $(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_API_TOKEN" | base64 | tr -d '\n')"
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "$auth_header" \
+    --max-time 10 \
+    "${JIRA_BASE_URL}/rest/api/3/myself" 2>/dev/null || echo "000")
+  if [[ "$http_code" == "2"* ]]; then
+    echo "[Plan 3] ✓ Jira credentials valid (HTTP $http_code from /rest/api/3/myself)"
+  else
+    PLAN3_ERRORS+=("FAIL: Jira credential check returned HTTP $http_code (401 = invalid credentials)")
+    PLAN3_PASS=false
+  fi
+fi
+
+# (ii) Check agents/_jira-retry.json for stuck items older than 24h
+RETRY_QUEUE="${DOWNSTREAM_ROOT}/agents/_jira-retry.json"
+if [ ! -f "$RETRY_QUEUE" ]; then
+  echo "[Plan 3] ✓ Retry queue is clean (no file)"
+else
+  _doctor_py=$(mktemp /tmp/jak-doctor-XXXXXX.py)
+  cat > "$_doctor_py" << 'PYEOF'
+import sys, json, datetime
+queue_path = sys.argv[1]
+threshold = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+stale = []
+try:
+    with open(queue_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line: continue
+            try:
+                d = json.loads(line)
+                ts = d.get('first_attempted_at', '')
+                if ts:
+                    t = datetime.datetime.fromisoformat(ts.replace('Z', '+00:00')).replace(tzinfo=None)
+                    if t < threshold:
+                        stale.append(d.get('ticket', '?'))
+            except Exception:
+                pass
+except Exception:
+    pass
+print(','.join(stale))
+PYEOF
+  stale=$(python3 "$_doctor_py" "$RETRY_QUEUE" 2>/dev/null || echo "")
+  rm -f "$_doctor_py"
+  if [ -n "$stale" ]; then
+    PLAN3_ERRORS+=("STUCK: retry queue has items older than 24h: $stale — run drain-retry-queue.sh or check Jira connectivity")
+    PLAN3_PASS=false
+  else
+    echo "[Plan 3] ✓ Retry queue has no stale items older than 24h"
+  fi
+fi
+
+# (iii) Verify tick.sh contains jak_pipeline_jira_tick_pass
+TICK_SH="${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh"
+if [ ! -f "$TICK_SH" ]; then
+  PLAN3_ERRORS+=("MISSING: $TICK_SH — run install.sh Plan 3 section")
+  PLAN3_PASS=false
+elif grep -qF "jak_pipeline_jira_tick_pass" "$TICK_SH" 2>/dev/null; then
+  echo "[Plan 3] ✓ tick.sh contains jak_pipeline_jira_tick_pass"
+else
+  PLAN3_ERRORS+=("MISSING jak_pipeline_jira_tick_pass in $TICK_SH — run install.sh Plan 3 section")
+  PLAN3_PASS=false
+fi
+
+if $PLAN3_PASS; then
+  echo "[Plan 3] ✓ All Plan 3 checks passed"
+else
+  echo "[Plan 3] ✗ Plan 3 checks failed:" >&2
+  for err in "${PLAN3_ERRORS[@]}"; do
+    echo "  - $err" >&2
+  done
+fi
 
 # ---------------------------------------------------------------------------
 # TODO Plan 4 — verify UAT strategy is configured, Docker stack can build,
@@ -182,7 +294,15 @@ fi
 #   Cloudflare Pages project (or chosen alternative) is reachable.
 # ---------------------------------------------------------------------------
 
-if $PLAN1_PASS && $PLAN2_PASS; then
+if [[ "$PLAN3_CHECK" == "1" ]]; then
+  if $PLAN3_PASS; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
+if $PLAN1_PASS && $PLAN2_PASS && $PLAN3_PASS; then
   exit 0
 else
   exit 1

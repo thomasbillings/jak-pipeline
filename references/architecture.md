@@ -131,7 +131,7 @@ Every Jira transition the pipeline writes is:
 1. **Read-before-write** — fetch current Jira state, abort if already at target state.
 2. **Never backwards** — refuse a transition that moves the ticket backwards on the kanban (backward edges in the state machine are GitHub-driven; Jira receives the result, never initiates it).
 3. **Verify-after-write** — re-fetch and assert the new state matches.
-4. **Retry 3× exponential backoff** on transient Jira failures. Backoff seed/cap: **OPEN — Plan 3**.
+4. **Retry 3× exponential backoff** on transient Jira failures. Backoff seed/cap: **2-second seed, 30-second cap, 3 attempts** (set in `scripts/jira/transition.sh`; overridable via `JIRA_BACKOFF_SEED_MS` / `JIRA_BACKOFF_CAP_MS` for tests).
 5. **Fall through to `agents/_jira-retry.json`** on persistent failure. The retry queue is JSONL-shaped (one pending transition per line); the coordinator's `tick.sh` drains it on each tick.
 6. **NEVER block the GitHub pipeline on Jira failure.** Mergify merges, dev-agents push, and pr-reviewers approve regardless of Jira's state. Jira drift is a reportable condition (post a PR comment on >10min drift, per §3) but not a pipeline-stopper.
 
@@ -193,10 +193,10 @@ Allow ~60 seconds between consecutive enable commits — enough time to confirm 
 
 The pipeline produces four artefacts the Owner consults regularly.
 
-1. **Stale-work JQL filter URL** — Jira saved filter surfacing tickets that have been in any non-terminal state > 7 days. Exact JQL: **OPEN — Plan 3.** Goes in the Owner's bookmarks.
-2. **Agent-claimed-work JQL filter URL** — Jira saved filter surfacing tickets currently being worked on by an agent (anything in In Development / PR Review / Merge Queue). Exact JQL: **OPEN — Plan 3.**
-3. **Weekly cost report** at `agents/_cost-report.md` — Mergify queue actions per week + Anthropic spend per merged PR. Owned by Plan 3 or 4 (TBD by Plan 3 author when they pick this up; defer to Plan 4 if Plan 3 stays focused on Jira plumbing).
-4. **Failure-escalation contract** — any silent handoff > 10 minutes (e.g. dev-agent posts a `COORDINATOR: please dispatch X` comment but no tick fires within 10 min, or a Jira retry queue grows without draining) fires a notification on **ntfy or Slack** (either is acceptable; the choice is made by whichever downstream plan picks up the contract — recorded in this file when chosen).
+1. **Stale-work JQL filter URL** — Jira saved filter surfacing tickets that have been in any non-terminal state > 7 days. Exact JQL and "When to consult" guidance in [`references/owner-jql-filters.md`](owner-jql-filters.md). Goes in the Owner's bookmarks.
+2. **Agent-claimed-work JQL filter URL** — Jira saved filter surfacing tickets currently being worked on by an agent (anything in In Development / PR Review / Merge Queue). Exact JQL and "Configure for your project" instructions in [`references/owner-jql-filters.md`](owner-jql-filters.md).
+3. **Weekly cost report** at `agents/_cost-report.md` — Mergify queue actions per week + Anthropic spend per merged PR. Owned by Plan 4 (deferred — Plan 3 stays focused on Jira plumbing).
+4. **Failure-escalation contract** — any silent handoff > 10 minutes fires a notification. Transport choice and implementation deferred to Plan 4.
 
 ## 13. Open items (decisions deferred to downstream plans)
 
@@ -204,10 +204,8 @@ Tracked here so a future implementer can see at a glance what's still unsettled.
 
 | Open item                                            | Resolved by                  |
 | ---------------------------------------------------- | ---------------------------- |
-| Jira retry exponential-backoff seed and cap          | Plan 3                       |
-| Cost-report owner (Plan 3 vs Plan 4)                 | Plan 3 author claims or punts |
-| Failure-escalation transport (ntfy vs Slack vs both) | Whichever downstream plan picks up escalation |
-| Exact JQL strings for Owner's two filter URLs        | Plan 3                       |
+| Cost-report owner                                    | Plan 4                       |
+| Failure-escalation transport (ntfy vs Slack vs both) | Plan 4                       |
 
 ## 14. Source provenance
 
