@@ -19,10 +19,64 @@ This file holds operational recovery procedures for the jak-pipeline. Every runb
 ## 2. Jira drift
 
 > **Owned by:** Plan 3 (Jira integration + drift reconciliation pass).
->
-> **Symptoms it should cover:** ticket state on the board diverges from PR state on GitHub (e.g. PR is merged but ticket is still in PR Review), idempotent transition helper failing silently, `agents/_jira-retry.json` queue growing unbounded, drift reconciliation pass in `tick.sh` failing to converge.
->
-> Body to be populated by Plan 3.
+
+### Symptoms
+
+- A Jira ticket is in the wrong kanban state: e.g. PR merged but ticket still in "PR Review", or branch pushed but ticket still in "Ready to Dev".
+- `agents/_jira-retry.json` is growing (rows accumulating, nothing draining).
+- `agents/_tick-log.md` has `JIRA_DRIFT:` entries repeating for the same ticket across many ticks.
+- `scripts/doctor.sh` exits non-zero with "STUCK: retry queue has items older than 24h".
+- A `[JAK-PIPELINE JIRA AHEAD]` comment appeared on a PR — Jira is ahead of GitHub state, probably from a manual board move.
+
+### Diagnosis
+
+```bash
+# 1. See what's drifting
+cat agents/_jira-drift.json
+
+# 2. Count stuck retry-queue rows
+cat agents/_jira-retry.json | wc -l
+
+# 3. See the full retry queue (ticket, state, attempt count)
+python3 -c "
+import json, sys
+for line in open('agents/_jira-retry.json'):
+    d = json.loads(line.strip())
+    print(d.get('ticket'), '->', d.get('target_state'), 'attempts:', d.get('attempt_count'))
+"
+
+# 4. Run doctor.sh for a full health summary
+DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/doctor.sh
+```
+
+### Recovery
+
+**If Jira API is reachable but credentials are wrong:**
+1. Rotate the API token at `https://id.atlassian.com/manage-profile/security/api-tokens`.
+2. Update `.claude/jira/.env` with the new `JIRA_API_TOKEN`.
+3. Run `DOWNSTREAM_ROOT=. PLAN3_CHECK=1 bash scripts/jak-pipeline/doctor.sh` — should exit 0.
+4. Run the drain manually: `DOWNSTREAM_ROOT=. bash scripts/jak-pipeline/jira/drain-retry-queue.sh`.
+
+**If a specific ticket is stuck (retry queue row):**
+```bash
+# Force-transition manually (bypasses retry queue)
+bash scripts/jak-pipeline/jira/transition.sh \
+  --project SCRUM \
+  --ticket SCRUM-NNN \
+  --to "In Development" \
+  --reason "manual-recovery"
+```
+
+**If the retry queue is large:**
+```bash
+# Drain the full queue; exits 0 even when individual transitions fail
+DOWNSTREAM_ROOT=. bash scripts/jak-pipeline/jira/drain-retry-queue.sh
+```
+
+**If Jira credentials need full rotation (leaked token):**
+- Follow the "§3. MCP credential rotation" runbook for token revocation/re-issue (parallel procedure for Jira creds: revoke token in Atlassian admin console, re-issue, update `.claude/jira/.env`).
+
+**Note on "JIRA AHEAD" alerts:** If Jira is ahead of GitHub state (manual board move), no auto-correction is applied. Resolve by either (a) moving the Jira ticket back to match GitHub state, or (b) accepting the discrepancy and letting the next merged PR advance the state naturally.
 
 ---
 
