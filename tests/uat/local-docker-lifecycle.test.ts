@@ -132,6 +132,7 @@ describe('local-docker-stop.sh (a4)', () => {
 describe('local-docker-accept.sh (a5)', () => {
   let tmpDir: string;
   let binDir: string;
+  let skillRoot: string;
   let overlay: string;
   let transitionLog: string;
   let stopLog: string;
@@ -139,11 +140,16 @@ describe('local-docker-accept.sh (a5)', () => {
   beforeEach(() => {
     tmpDir = makeTempDir();
     binDir = path.join(tmpDir, 'bin');
+    // Mock skill root: accepts JAK_SKILL_ROOT so transition.sh resolves to mock
+    skillRoot = tmpDir;
     fs.mkdirSync(binDir);
+    fs.mkdirSync(path.join(skillRoot, 'scripts', 'jira'), { recursive: true });
     overlay = makeOverlay(tmpDir);
     transitionLog = path.join(tmpDir, 'transition.calls');
     stopLog = path.join(tmpDir, 'stop.calls');
-    makeMockBin(binDir, 'transition.sh', 0, { logFile: transitionLog });
+    // Place mock transition.sh where the script expects it: <skillRoot>/scripts/jira/transition.sh
+    makeMockBin(path.join(skillRoot, 'scripts', 'jira'), 'transition.sh', 0, { logFile: transitionLog });
+    // Place mock stop.sh in binDir (used via JAK_UAT_SCRIPTS_DIR)
     makeMockBin(binDir, 'local-docker-stop.sh', 0, { logFile: stopLog });
     makeMockDocker(binDir);
   });
@@ -154,6 +160,8 @@ describe('local-docker-accept.sh (a5)', () => {
 
   it('calls transition.sh with the ticket key and target state "Done"', async () => {
     const result = await runScript(ACCEPT, ['SCRUM-42', overlay], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
     });
     expect(result.exitCode).toBe(0);
@@ -164,6 +172,8 @@ describe('local-docker-accept.sh (a5)', () => {
 
   it('tears the stack down on Jira success', async () => {
     await runScript(ACCEPT, ['SCRUM-42', overlay], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
     });
     const stops = fs.existsSync(stopLog) ? fs.readFileSync(stopLog, 'utf8') : '';
@@ -172,9 +182,11 @@ describe('local-docker-accept.sh (a5)', () => {
 
   it('tears the stack down even when Jira transition fails', async () => {
     // Make transition.sh fail
-    makeMockBin(binDir, 'transition.sh', 1, { logFile: transitionLog });
+    makeMockBin(path.join(skillRoot, 'scripts', 'jira'), 'transition.sh', 1, { logFile: transitionLog });
 
     await runScript(ACCEPT, ['SCRUM-42', overlay], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
     });
     const stops = fs.existsSync(stopLog) ? fs.readFileSync(stopLog, 'utf8') : '';
@@ -182,10 +194,12 @@ describe('local-docker-accept.sh (a5)', () => {
   });
 
   it('appends to _jira-retry.json when Jira transition fails', async () => {
-    makeMockBin(binDir, 'transition.sh', 1, { logFile: transitionLog });
+    makeMockBin(path.join(skillRoot, 'scripts', 'jira'), 'transition.sh', 1, { logFile: transitionLog });
     const retryFile = path.join(tmpDir, '_jira-retry.json');
 
     await runScript(ACCEPT, ['SCRUM-42', overlay], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
       JAK_JIRA_RETRY_FILE: retryFile,
     });
@@ -201,6 +215,7 @@ describe('local-docker-accept.sh (a5)', () => {
 describe('local-docker-reject.sh (a6)', () => {
   let tmpDir: string;
   let binDir: string;
+  let skillRoot: string;
   let overlay: string;
   let transitionLog: string;
   let stopLog: string;
@@ -209,12 +224,14 @@ describe('local-docker-reject.sh (a6)', () => {
   beforeEach(() => {
     tmpDir = makeTempDir();
     binDir = path.join(tmpDir, 'bin');
+    skillRoot = tmpDir;
     fs.mkdirSync(binDir);
+    fs.mkdirSync(path.join(skillRoot, 'scripts', 'jira'), { recursive: true });
     overlay = makeOverlay(tmpDir);
     transitionLog = path.join(tmpDir, 'transition.calls');
     stopLog = path.join(tmpDir, 'stop.calls');
     ghLog = path.join(tmpDir, 'gh.calls');
-    makeMockBin(binDir, 'transition.sh', 0, { logFile: transitionLog });
+    makeMockBin(path.join(skillRoot, 'scripts', 'jira'), 'transition.sh', 0, { logFile: transitionLog });
     makeMockBin(binDir, 'local-docker-stop.sh', 0, { logFile: stopLog });
     makeMockBin(binDir, 'gh', 0, { logFile: ghLog });
     makeMockDocker(binDir);
@@ -226,6 +243,8 @@ describe('local-docker-reject.sh (a6)', () => {
 
   it('calls transition.sh with the ticket key and target state "PR Review"', async () => {
     const result = await runScript(REJECT, ['SCRUM-7', overlay, 'does not meet AC'], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
       GH_PR_NUMBER: '99',
     });
@@ -237,6 +256,8 @@ describe('local-docker-reject.sh (a6)', () => {
 
   it('posts a gh pr comment with the rejection reason', async () => {
     await runScript(REJECT, ['SCRUM-7', overlay, 'fails smoke test'], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
       GH_PR_NUMBER: '99',
     });
@@ -247,6 +268,8 @@ describe('local-docker-reject.sh (a6)', () => {
 
   it('tears the stack down after rejection', async () => {
     await runScript(REJECT, ['SCRUM-7', overlay, 'bad'], {
+      JAK_SKILL_ROOT: skillRoot,
+      JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
       GH_PR_NUMBER: '99',
     });

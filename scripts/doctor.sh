@@ -289,10 +289,77 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# TODO Plan 4 — verify UAT strategy is configured, Docker stack can build,
-#   Storybook preview workflow exists in .github/workflows/,
-#   Cloudflare Pages project (or chosen alternative) is reachable.
+# Plan 4 — verify UAT strategy, Docker overlay, Storybook workflow, CF secret.
 # ---------------------------------------------------------------------------
+
+PLAN4_PASS=true
+PLAN4_ERRORS=()
+
+DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-$PWD}"
+PLAN4_CONFIG_ENV="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/config.env"
+
+# (i) Verify config.env exists and contains JAK_UAT_STRATEGY
+if [ ! -f "$PLAN4_CONFIG_ENV" ]; then
+  PLAN4_ERRORS+=("MISSING: $PLAN4_CONFIG_ENV — run scripts/install.sh Plan 4 section")
+  PLAN4_PASS=false
+else
+  if ! grep -qE '^JAK_UAT_STRATEGY=' "$PLAN4_CONFIG_ENV" 2>/dev/null; then
+    PLAN4_ERRORS+=("MISSING JAK_UAT_STRATEGY in $PLAN4_CONFIG_ENV — run scripts/install.sh Plan 4 section")
+    PLAN4_PASS=false
+  else
+    _uat_strategy=$(grep '^JAK_UAT_STRATEGY=' "$PLAN4_CONFIG_ENV" | head -1 | cut -d= -f2)
+    echo "[Plan 4] ✓ JAK_UAT_STRATEGY=${_uat_strategy} found in config.env"
+
+    # (ii) When strategy is local-docker, verify overlay exists and parses
+    if [ "$_uat_strategy" = "local-docker" ]; then
+      UAT_OVERLAY="${DOWNSTREAM_ROOT}/docker/docker-compose.local-uat.yml"
+      if [ ! -f "$UAT_OVERLAY" ]; then
+        PLAN4_ERRORS+=("MISSING: $UAT_OVERLAY — run scripts/install.sh Plan 4 section")
+        PLAN4_PASS=false
+      else
+        if docker compose -f "$UAT_OVERLAY" config --quiet 2>/dev/null; then
+          echo "[Plan 4] ✓ docker/docker-compose.local-uat.yml exists and parses clean"
+        else
+          PLAN4_ERRORS+=("FAIL: docker compose config parse error in $UAT_OVERLAY")
+          PLAN4_PASS=false
+        fi
+      fi
+    fi
+  fi
+fi
+
+# (iii) Verify storybook-preview.yml exists and references CF_PAGES_PROJECT
+STORYBOOK_WORKFLOW="${DOWNSTREAM_ROOT}/.github/workflows/storybook-preview.yml"
+if [ ! -f "$STORYBOOK_WORKFLOW" ]; then
+  PLAN4_ERRORS+=("MISSING: $STORYBOOK_WORKFLOW — run scripts/install.sh Plan 4 section")
+  PLAN4_PASS=false
+elif ! grep -qF "CF_PAGES_PROJECT" "$STORYBOOK_WORKFLOW" 2>/dev/null; then
+  PLAN4_ERRORS+=("MISSING CF_PAGES_PROJECT reference in $STORYBOOK_WORKFLOW")
+  PLAN4_PASS=false
+else
+  echo "[Plan 4] ✓ .github/workflows/storybook-preview.yml exists and references CF_PAGES_PROJECT"
+fi
+
+# (iv) Verify CF_API_TOKEN secret is configured via gh secret list
+if command -v gh &>/dev/null; then
+  if gh secret list 2>/dev/null | grep -q 'CF_API_TOKEN'; then
+    echo "[Plan 4] ✓ CF_API_TOKEN secret is configured on this repo"
+  else
+    PLAN4_ERRORS+=("MISSING CF_API_TOKEN GitHub Actions secret — see instructions in scripts/install.sh Plan 4 output")
+    PLAN4_PASS=false
+  fi
+else
+  echo "[Plan 4] SKIP CF_API_TOKEN check — gh CLI not available"
+fi
+
+if $PLAN4_PASS; then
+  echo "[Plan 4] ✓ All Plan 4 checks passed"
+else
+  echo "[Plan 4] ✗ Plan 4 checks failed:" >&2
+  for err in "${PLAN4_ERRORS[@]}"; do
+    echo "  - $err" >&2
+  done
+fi
 
 if [[ "$PLAN3_CHECK" == "1" ]]; then
   if $PLAN3_PASS; then
@@ -302,7 +369,7 @@ if [[ "$PLAN3_CHECK" == "1" ]]; then
   fi
 fi
 
-if $PLAN1_PASS && $PLAN2_PASS && $PLAN3_PASS; then
+if $PLAN1_PASS && $PLAN2_PASS && $PLAN3_PASS && $PLAN4_PASS; then
   exit 0
 else
   exit 1
