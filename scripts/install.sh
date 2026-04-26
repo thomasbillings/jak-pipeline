@@ -317,12 +317,19 @@ else
     read -r -p "[Plan 4] Enter your Cloudflare Pages project name: " _cf_project
   fi
   if [ -n "$_cf_project" ]; then
-    echo "CF_PAGES_PROJECT=${_cf_project}" >> "$PLAN4_CONFIG_ENV"
-    echo "[Plan 4] ✓ Wrote CF_PAGES_PROJECT=${_cf_project} to config.env"
-    # Update the storybook workflow placeholder if just installed
-    if [ -f "$STORYBOOK_DEST" ]; then
-      sed -i.bak "s/your-cf-pages-project/${_cf_project}/g" "$STORYBOOK_DEST" && rm -f "${STORYBOOK_DEST}.bak"
-      echo "[Plan 4] ✓ Updated CF_PAGES_PROJECT in storybook-preview.yml"
+    # Validate: CF Pages project names are lowercase alphanumeric + hyphens only
+    if [[ ! "$_cf_project" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+      echo "[Plan 4] ERROR: CF_PAGES_PROJECT must be lowercase alphanumeric with hyphens (got: ${_cf_project})" >&2
+      PLAN4_ERRORS+=("INVALID CF_PAGES_PROJECT: ${_cf_project}")
+    else
+      printf 'CF_PAGES_PROJECT=%s\n' "$_cf_project" >> "$PLAN4_CONFIG_ENV"
+      echo "[Plan 4] ✓ Wrote CF_PAGES_PROJECT=${_cf_project} to config.env"
+      # Update the storybook workflow placeholder if just installed
+      if [ -f "$STORYBOOK_DEST" ]; then
+        # Safe: validated above to be [a-z0-9-] only — no sed metacharacter risk
+        sed -i.bak "s/your-cf-pages-project/${_cf_project}/g" "$STORYBOOK_DEST" && rm -f "${STORYBOOK_DEST}.bak"
+        echo "[Plan 4] ✓ Updated CF_PAGES_PROJECT in storybook-preview.yml"
+      fi
     fi
   else
     echo "[Plan 4] SKIP CF_PAGES_PROJECT — set CF_PAGES_PROJECT env var or edit config.env manually"
