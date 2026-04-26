@@ -83,7 +83,7 @@ A TypeScript stdio MCP server lives in `mcp/mergify/` (Plan 1). Six tools, role-
 | `mergify_get_queue_summary`     | 30s          | ✅          | ✅          | ✅        | ✅      |
 | `mergify_get_queue_details(pr)` | none         | ✅          | ✅          | ✅        | —       |
 | `mergify_check_pr_eligibility(pr)` | none      | ✅          | ✅          | ✅        | —       |
-| `mergify_list_queue_freezes`    | **OPEN — Plan 1** | ✅     | ✅          | —         | —       |
+| `mergify_list_queue_freezes`    | **60s** (Plan 1)  | ✅     | ✅          | —         | —       |
 | `mergify_set_queue_state(state, reason)` | none | ✅ (only)   | —           | —         | —       |
 | `mergify_replay_pr(pr, reason)` | none         | ✅ (only)   | —           | —         | —       |
 
@@ -198,7 +198,6 @@ Tracked here so a future implementer can see at a glance what's still unsettled.
 
 | Open item                                            | Resolved by                  |
 | ---------------------------------------------------- | ---------------------------- |
-| `mergify_list_queue_freezes` cache TTL               | Plan 1                       |
 | Jira retry exponential-backoff seed and cap          | Plan 3                       |
 | Per-queue enable order within Day 6-13               | Plan 2                       |
 | Cost-report owner (Plan 3 vs Plan 4)                 | Plan 3 author claims or punts |
