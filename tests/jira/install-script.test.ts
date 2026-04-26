@@ -100,6 +100,10 @@ describe('install.sh — Plan 3 section (a16)', () => {
     );
     const sourceMatches = (tickContent.match(/jak_pipeline_jira_tick_pass/g) || []).length;
     expect(sourceMatches).toBe(1);
+    // Verify the source path resolves to the correct relative location:
+    // tick.sh is at scripts/coordinator/tick.sh, tick-extension.sh at
+    // scripts/jak-pipeline/jira/tick-extension.sh — requires one "../" step up.
+    expect(tickContent).toContain('/../jak-pipeline/jira/tick-extension.sh');
   });
 
   it('is idempotent — second run does not duplicate tick.sh line', async () => {

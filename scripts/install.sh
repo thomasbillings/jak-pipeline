@@ -209,7 +209,7 @@ if [ ! -f "$TICK_SH" ]; then
 elif grep -qF "$TICK_SENTINEL" "$TICK_SH" 2>/dev/null; then
   echo "[Plan 3] ✓ tick.sh already registers jak_pipeline_jira_tick_pass (idempotent)"
 else
-  printf '\n# jak-pipeline: Jira tick pass\n. "$(dirname "${BASH_SOURCE[0]}")/jak-pipeline/jira/tick-extension.sh"\njak_pipeline_jira_tick_pass\n' >> "$TICK_SH"
+  printf '\n# jak-pipeline: Jira tick pass\n. "$(dirname "${BASH_SOURCE[0]}")/../jak-pipeline/jira/tick-extension.sh"\njak_pipeline_jira_tick_pass\n' >> "$TICK_SH"
   echo "[Plan 3] ✓ Appended jak_pipeline_jira_tick_pass to tick.sh"
 fi
 
