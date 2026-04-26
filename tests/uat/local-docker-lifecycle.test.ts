@@ -183,11 +183,13 @@ describe('local-docker-accept.sh (a5)', () => {
   it('tears the stack down even when Jira transition fails', async () => {
     // Make transition.sh fail
     makeMockBin(path.join(skillRoot, 'scripts', 'jira'), 'transition.sh', 1, { logFile: transitionLog });
+    const retryFile = path.join(tmpDir, '_jira-retry.json');
 
     await runScript(ACCEPT, ['SCRUM-42', overlay], {
       JAK_SKILL_ROOT: skillRoot,
       JAK_UAT_SCRIPTS_DIR: binDir,
       PATH: `${binDir}:${process.env.PATH}`,
+      JAK_JIRA_RETRY_FILE: retryFile,
     });
     const stops = fs.existsSync(stopLog) ? fs.readFileSync(stopLog, 'utf8') : '';
     expect(stops).toContain(overlay);
