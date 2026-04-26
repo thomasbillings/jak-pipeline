@@ -3,24 +3,153 @@ set -euo pipefail
 
 # install.sh — install the jak-pipeline skill into a target project.
 #
-# Intent: bootstrap a downstream repo with the Mergify config, agent files,
-# coordinator scripts, MCP server, Jira integration, and UAT scaffolding
-# that this skill provides. Run from inside the target project's root.
-#
-# This file is currently a SCAFFOLD — it does nothing functional. The body
-# is populated incrementally by the downstream plans:
-#
-#   1. Plan 1 — wire up Mergify MCP server (mcp/mergify/) into target's
-#      `.claude/mcp/` and seed the redaction wrapper + env-file template.
-#   2. Plan 2 — copy `.mergify.yml.tmpl` + named-queue config; install
-#      agent files that apply `queue:*` labels gated on BLOCKERs=0 +
-#      tests-green; install `agents/_label-log.jsonl` writer.
-#   3. Plan 3 — provision the Jira board (idempotent), install the
-#      transition helper, register the drift reconciliation pass with the
-#      coordinator's `tick.sh`, install `agents/_jira-retry.json` queue.
-#   4. Plan 4 — install UAT environment Docker stack (default strategy
-#      `local-docker`), Storybook preview-per-PR workflow, run the first
-#      install on TnT Finance.
+# Run from inside the target project's root (or set JAK_DOWNSTREAM_ROOT).
+# JAK_SKILL_ROOT — path to the jak-pipeline skill repo (defaults to this script's parent).
 
-echo "scaffold-only — see Plan 1 (MCP server), Plan 2 (Mergify config + agents), Plan 3 (Jira), Plan 4 (UAT + first install)"
-exit 1
+JAK_SKILL_ROOT="${JAK_SKILL_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+DOWNSTREAM_ROOT="${JAK_DOWNSTREAM_ROOT:-$PWD}"
+
+# ---------------------------------------------------------------------------
+# TODO Plan 1 — wire up Mergify MCP server (mcp/mergify/) into target's
+#   .claude/mcp/ and seed the redaction wrapper + env-file template.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Plan 2 — Mergify config + label trust boundary + branch-ticket binding
+# ---------------------------------------------------------------------------
+PLAN2_ERRORS=()
+
+# (i) Copy .mergify.yml template
+MERGIFY_TMPL="${JAK_SKILL_ROOT}/templates/.mergify.yml.tmpl"
+MERGIFY_DEST="${DOWNSTREAM_ROOT}/.mergify.yml"
+if [ ! -f "$MERGIFY_TMPL" ]; then
+  PLAN2_ERRORS+=("MISSING: $MERGIFY_TMPL — skill installation may be incomplete")
+else
+  cp "$MERGIFY_TMPL" "$MERGIFY_DEST"
+  echo "[Plan 2] ✓ Installed .mergify.yml"
+fi
+
+# (ii) Append pr-reviewer label-gate overlay (idempotent via sentinel comment)
+OVERLAY_SRC="${JAK_SKILL_ROOT}/templates/agents/pr-reviewer-label-gate.md"
+PR_REVIEWER_DEST="${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md"
+SENTINEL="<!-- jak-pipeline:pr-reviewer-label-gate v1 -->"
+
+if [ ! -f "$OVERLAY_SRC" ]; then
+  PLAN2_ERRORS+=("MISSING: $OVERLAY_SRC")
+elif [ ! -f "$PR_REVIEWER_DEST" ]; then
+  echo "[Plan 2] SKIP overlay — $PR_REVIEWER_DEST does not exist (create it first)"
+else
+  if grep -qF "$SENTINEL" "$PR_REVIEWER_DEST" 2>/dev/null; then
+    echo "[Plan 2] ✓ pr-reviewer overlay already present (idempotent)"
+  else
+    # Atomic: install decider script first; overlay only on success
+    SCRIPTS_DEST="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/scripts"
+    mkdir -p "$SCRIPTS_DEST"
+    for script in label-gate-decide.sh label-log-append.sh branch-ticket-check.sh; do
+      src="${JAK_SKILL_ROOT}/scripts/${script}"
+      if [ -f "$src" ]; then
+        cp "$src" "${SCRIPTS_DEST}/${script}"
+        chmod +x "${SCRIPTS_DEST}/${script}"
+      else
+        PLAN2_ERRORS+=("MISSING script: $src")
+      fi
+    done
+    if [ ${#PLAN2_ERRORS[@]} -eq 0 ]; then
+      echo "" >> "$PR_REVIEWER_DEST"
+      cat "$OVERLAY_SRC" >> "$PR_REVIEWER_DEST"
+      echo "[Plan 2] ✓ Appended pr-reviewer label-gate overlay"
+    fi
+  fi
+fi
+
+# (iii) Install scripts to .claude/jak-pipeline/scripts/ (if not already done above)
+SCRIPTS_DEST="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/scripts"
+if [ -d "$SCRIPTS_DEST" ]; then
+  echo "[Plan 2] ✓ Scripts already installed at $SCRIPTS_DEST"
+else
+  mkdir -p "$SCRIPTS_DEST"
+  for script in label-gate-decide.sh label-log-append.sh branch-ticket-check.sh; do
+    src="${JAK_SKILL_ROOT}/scripts/${script}"
+    if [ -f "$src" ]; then
+      cp "$src" "${SCRIPTS_DEST}/${script}"
+      chmod +x "${SCRIPTS_DEST}/${script}"
+    else
+      PLAN2_ERRORS+=("MISSING script: $src")
+    fi
+  done
+  echo "[Plan 2] ✓ Installed scripts to $SCRIPTS_DEST"
+fi
+
+# (iv) Install branch-ticket-check.sh as pre-push hook (idempotent via sentinel)
+HOOK_SENTINEL="# jak-pipeline branch-ticket-check"
+BRANCH_CHECK="${SCRIPTS_DEST}/branch-ticket-check.sh"
+HOOK_BODY="
+${HOOK_SENTINEL}
+\${BASH_SOURCE%/*}/../../.claude/jak-pipeline/scripts/branch-ticket-check.sh \"\$(git rev-parse --abbrev-ref HEAD)\"
+"
+
+if [ -d "${DOWNSTREAM_ROOT}/.husky" ]; then
+  HOOK_FILE="${DOWNSTREAM_ROOT}/.husky/pre-push"
+  if [ ! -f "$HOOK_FILE" ]; then
+    echo "#!/usr/bin/env sh" > "$HOOK_FILE"
+    echo ". \"\$(dirname -- \"\$0\")/_/husky.sh\"" >> "$HOOK_FILE"
+  fi
+  if grep -qF "$HOOK_SENTINEL" "$HOOK_FILE" 2>/dev/null; then
+    echo "[Plan 2] ✓ pre-push hook already has branch-ticket-check (idempotent)"
+  else
+    printf '\n%s\n.claude/jak-pipeline/scripts/branch-ticket-check.sh "$(git rev-parse --abbrev-ref HEAD)"\n' \
+      "$HOOK_SENTINEL" >> "$HOOK_FILE"
+    chmod +x "$HOOK_FILE"
+    echo "[Plan 2] ✓ Added branch-ticket-check to .husky/pre-push"
+  fi
+else
+  HOOK_FILE="${DOWNSTREAM_ROOT}/.git/hooks/pre-push"
+  if [ ! -f "$HOOK_FILE" ]; then
+    echo "#!/usr/bin/env bash" > "$HOOK_FILE"
+  fi
+  if grep -qF "$HOOK_SENTINEL" "$HOOK_FILE" 2>/dev/null; then
+    echo "[Plan 2] ✓ pre-push hook already has branch-ticket-check (idempotent)"
+  else
+    printf '\n%s\n.claude/jak-pipeline/scripts/branch-ticket-check.sh "$(git rev-parse --abbrev-ref HEAD)"\n' \
+      "$HOOK_SENTINEL" >> "$HOOK_FILE"
+    chmod +x "$HOOK_FILE"
+    echo "[Plan 2] ✓ Added branch-ticket-check to .git/hooks/pre-push"
+  fi
+fi
+
+# (v) Append agents/_label-log.jsonl to .gitignore (idempotent)
+GITIGNORE="${DOWNSTREAM_ROOT}/.gitignore"
+GITIGNORE_ENTRY="agents/_label-log.jsonl"
+if [ ! -f "$GITIGNORE" ]; then
+  echo "$GITIGNORE_ENTRY" > "$GITIGNORE"
+  echo "[Plan 2] ✓ Created .gitignore with $GITIGNORE_ENTRY"
+elif grep -qF "$GITIGNORE_ENTRY" "$GITIGNORE" 2>/dev/null; then
+  echo "[Plan 2] ✓ .gitignore already contains $GITIGNORE_ENTRY (idempotent)"
+else
+  echo "$GITIGNORE_ENTRY" >> "$GITIGNORE"
+  echo "[Plan 2] ✓ Added $GITIGNORE_ENTRY to .gitignore"
+fi
+
+if [ ${#PLAN2_ERRORS[@]} -gt 0 ]; then
+  echo "[Plan 2] ✗ Install errors:" >&2
+  for err in "${PLAN2_ERRORS[@]}"; do
+    echo "  - $err" >&2
+  done
+  exit 1
+fi
+
+echo "[Plan 2] ✓ Plan 2 install complete"
+
+# ---------------------------------------------------------------------------
+# TODO Plan 3 — provision the Jira board (idempotent), install the
+#   transition helper, register the drift reconciliation pass with the
+#   coordinator's tick.sh, install agents/_jira-retry.json queue.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# TODO Plan 4 — install UAT environment Docker stack (default strategy
+#   local-docker), Storybook preview-per-PR workflow, run the first
+#   install on TnT Finance.
+# ---------------------------------------------------------------------------
+
+exit 0
