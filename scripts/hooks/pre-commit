@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pre-commit: scan staged content for Mergify and GitHub token prefixes.
+# Exits non-zero if any match found.
+# Install: symlink to .git/hooks/pre-commit (done by scripts/install.sh Plan 1).
+# Note: bypass via --no-verify is prohibited by CLAUDE.md without explicit user approval.
+
+set -euo pipefail
+
+# Token patterns per a10: gh[ps]_, github_pat_, mrg_live_, mrg_test_
+PATTERNS='(gh[ps]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|mrg_live_[A-Za-z0-9]+|mrg_test_[A-Za-z0-9]+)'
+
+# Scan staged diff added lines only
+MATCHES=$(git diff --cached --unified=0 | grep '^+' | grep -E "$PATTERNS" || true)
+
+if [ -n "$MATCHES" ]; then
+  echo "[pre-commit] BLOCKED: staged content contains token prefix(es):" >&2
+  echo "$MATCHES" >&2
+  echo "" >&2
+  echo "Remove the token(s) before committing." >&2
+  exit 1
+fi
+
+exit 0
