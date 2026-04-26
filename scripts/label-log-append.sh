@@ -62,13 +62,24 @@ fi
 # Create directory and file if needed
 mkdir -p "$LOG_DIR"
 
-# Append JSONL row
+# JSON-escape a string: backslash → \\, double-quote → \", control chars stripped
+json_escape() {
+  printf '%s' "$1" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])"
+}
+
+APPLIED_BY_ESC="$(json_escape "$APPLIED_BY")"
+LABEL_ESC="$(json_escape "$LABEL")"
+TESTS_STATE_ESC="$(json_escape "$TESTS_STATE")"
+REASONING_ESC="$(json_escape "$REASONING")"
+NOW_ESC="$(json_escape "$NOW")"
+
+# Append JSONL row (all string fields are JSON-escaped)
 printf '{"applied_by":"%s","pr_number":%d,"label":"%s","blocker_count":%d,"tests_state":"%s","reasoning":"%s","applied_at":"%s"}\n' \
-  "$APPLIED_BY" \
+  "$APPLIED_BY_ESC" \
   "$PR_NUMBER" \
-  "$LABEL" \
+  "$LABEL_ESC" \
   "$BLOCKER_COUNT" \
-  "$TESTS_STATE" \
-  "$REASONING" \
-  "$NOW" \
+  "$TESTS_STATE_ESC" \
+  "$REASONING_ESC" \
+  "$NOW_ESC" \
   >> "$LOG_FILE"
