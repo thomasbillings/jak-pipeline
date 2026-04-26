@@ -47,16 +47,25 @@ export function createMergifyClient(cache: Cache): MergifyClient {
       return cache.getOrSet('queue_freezes', 60_000, () => request('/queue/freeze'));
     },
     async setQueueState(state: string, reason: string) {
-      return request('/queue/freeze', {
+      if (state !== 'locked' && state !== 'unlocked') {
+        throw new Error(`setQueueState: invalid state "${state}" — must be "locked" or "unlocked"`);
+      }
+      const result = await request('/queue/freeze', {
         method: state === 'locked' ? 'PUT' : 'DELETE',
         body: JSON.stringify({ reason }),
       });
+      // Invalidate freeze cache — state just changed
+      cache.clear();
+      return result;
     },
     async replayPr(pr: number, reason: string) {
-      return request(`/queue/pulls/${pr}/replay`, {
+      const result = await request(`/queue/pulls/${pr}/replay`, {
         method: 'POST',
         body: JSON.stringify({ reason }),
       });
+      // Invalidate summary cache — queue state just changed
+      cache.clear();
+      return result;
     },
   };
 }

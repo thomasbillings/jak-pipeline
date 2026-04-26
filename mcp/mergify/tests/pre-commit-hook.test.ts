@@ -109,6 +109,18 @@ describe('pre-commit hook (a10)', () => {
     }
   });
 
+  it('exits non-zero when staged content contains ghr_ token', () => {
+    const dir = setupTempRepo();
+    try {
+      stageFile(dir, 'secret.txt', 'REFRESH_TOKEN=ghr_FAKEFAKEFAKE1234567890\n');
+      const { status, stderr } = runHook(dir);
+      expect(status).not.toBe(0);
+      expect(stderr).toContain('BLOCKED');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('does not block on unstaged content containing tokens', () => {
     const dir = setupTempRepo();
     try {

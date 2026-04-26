@@ -180,6 +180,33 @@ describe('mergify-client', () => {
     expect(() => createMergifyClient(cache)).toThrow('MERGIFY_API_KEY');
   });
 
+  it('throws on invalid setQueueState state value', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const cache = createCache();
+    const { createMergifyClient } = await import('../src/mergify-client.js');
+    const client = createMergifyClient(cache);
+    await expect(client.setQueueState('paused', 'typo')).rejects.toThrow('invalid state');
+  });
+
+  it('setQueueState clears cache after mutation', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ applied: true }) });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const cache = createCache();
+    const summarySpy = vi.fn().mockResolvedValue({ queues: [] });
+    await cache.getOrSet('queue_summary', 30_000, summarySpy);
+    expect(summarySpy).toHaveBeenCalledTimes(1);
+
+    const { createMergifyClient } = await import('../src/mergify-client.js');
+    const client = createMergifyClient(cache);
+    await client.setQueueState('locked', 'test');
+
+    // After setQueueState clears cache, next call should re-fetch
+    await cache.getOrSet('queue_summary', 30_000, summarySpy);
+    expect(summarySpy).toHaveBeenCalledTimes(2);
+  });
+
   it('getQueueSummary uses cache on second call', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,

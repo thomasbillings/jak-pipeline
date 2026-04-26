@@ -68,15 +68,7 @@ else
 fi
 
 # (iii) Verify the redaction wrapper module can be imported (node --input-type=module).
-if node --input-type=module <<'EOF' 2>/dev/null
-import { redactErrorEnvelope } from '$MCP_DIR/dist/redaction.js';
-const result = redactErrorEnvelope({ error: 'mrg_live_FAKE' });
-if (result.error.includes('mrg_live_')) process.exit(1);
-process.exit(0);
-EOF
-then
-  echo "[Plan 1] ✓ Redaction wrapper importable and functional"
-elif node --input-type=module - <<EOF 2>/dev/null
+if node --input-type=module - <<EOF 2>/dev/null
 import { redactErrorEnvelope } from '${MCP_DIR}/dist/redaction.js';
 const result = redactErrorEnvelope({ error: 'mrg_live_FAKE' });
 if (result.error.includes('mrg_live_')) process.exit(1);

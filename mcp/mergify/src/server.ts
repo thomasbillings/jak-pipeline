@@ -10,7 +10,7 @@ import { checkEnvLeakGuard } from './env-leak-guard.js';
 export interface ToolDefinition {
   name: ToolName;
   description: string;
-  inputSchema: Record<string, { type: 'string' | 'number'; description: string }>;
+  inputSchema: Record<string, { type: 'string' | 'number'; description: string; required?: boolean }>;
   handler(args: Record<string, unknown>, client: MergifyClient): Promise<unknown>;
 }
 
@@ -59,11 +59,10 @@ async function loadTools(): Promise<ToolDefinition[]> {
 function buildInputSchema(def: ToolDefinition) {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [key, field] of Object.entries(def.inputSchema)) {
-    if (field.type === 'number') {
-      shape[key] = z.number().describe(field.description).optional();
-    } else {
-      shape[key] = z.string().describe(field.description).optional();
-    }
+    const base = field.type === 'number'
+      ? z.number().describe(field.description)
+      : z.string().describe(field.description);
+    shape[key] = field.required ? base : base.optional();
   }
   return shape;
 }
