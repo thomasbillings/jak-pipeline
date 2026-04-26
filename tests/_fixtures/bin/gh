@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# PATH-shim for gh used in tests. Emits canned JSON based on GH_STUB_MODE env var.
+# GH_STUB_MODE values:
+#   reviews-approved-no-blockers — returns an approved review with BLOCKERS: 0
+#   reviews-approved-has-blockers — returns a review with BLOCKERS: 1
+#   reviews-empty — returns empty array
+#   checks-green — all checks success
+#   checks-failing — one check is failure
+
+case "${GH_STUB_MODE:-reviews-approved-no-blockers}" in
+  reviews-approved-no-blockers)
+    cat <<'JSON'
+[{"id":1,"user":{"login":"github-actions[bot]"},"state":"APPROVED","body":"## Review\n\nBLOCKERS: 0\n\ntests-state: green"}]
+JSON
+    ;;
+  reviews-approved-has-blockers)
+    cat <<'JSON'
+[{"id":1,"user":{"login":"github-actions[bot]"},"state":"COMMENTED","body":"## Review\n\nBLOCKERS: 1\n\ntests-state: red"}]
+JSON
+    ;;
+  reviews-empty)
+    echo '[]'
+    ;;
+  checks-green)
+    cat <<'JSON'
+{"check_runs":[{"name":"lint","conclusion":"success"},{"name":"test","conclusion":"success"}]}
+JSON
+    ;;
+  checks-failing)
+    cat <<'JSON'
+{"check_runs":[{"name":"lint","conclusion":"success"},{"name":"test","conclusion":"failure"}]}
+JSON
+    ;;
+  *)
+    echo '[]'
+    ;;
+esac
