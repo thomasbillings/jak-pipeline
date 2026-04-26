@@ -24,6 +24,9 @@ MERGIFY_TMPL="${JAK_SKILL_ROOT}/templates/.mergify.yml.tmpl"
 MERGIFY_DEST="${DOWNSTREAM_ROOT}/.mergify.yml"
 if [ ! -f "$MERGIFY_TMPL" ]; then
   PLAN2_ERRORS+=("MISSING: $MERGIFY_TMPL — skill installation may be incomplete")
+elif [ -f "$MERGIFY_DEST" ]; then
+  # Idempotent: skip if already installed to avoid overwriting user customisations
+  echo "[Plan 2] ✓ .mergify.yml already present (idempotent — not overwritten)"
 else
   cp "$MERGIFY_TMPL" "$MERGIFY_DEST"
   echo "[Plan 2] ✓ Installed .mergify.yml"
