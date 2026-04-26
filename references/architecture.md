@@ -176,12 +176,18 @@ The full Mergify config is committed on Day 0 with every queue marked `disabled:
 | **Day 0** | install day  | Commit `.mergify.yml` with all queues `disabled: true`. `auto-update-prs.yml` still runs.    |
 | **Day 1-2** | +1 day     | Enable `queue:plan`. Plan PRs now route through Mergify; everything else still uses legacy.  |
 | **Day 3-5** | +3 days    | Enable `queue:infra`. Chore PRs join.                                                         |
-| **Day 6-13** | +6 days   | Enable `queue:feature`, `queue:bug`, `queue:design` together. Full cutover for code PRs.     |
+| **Day 6-13** | +6 days   | Enable `queue:bug`, then `queue:feature`, then `queue:design` (separate commits, ~60s apart). Full cutover for code PRs. |
 | **Day 14+** | +14 days   | After 2 green weeks, delete `auto-update-prs.yml`. Mergify is the sole merge engine.         |
 
 **Rollback recipe:** `git revert <enable-queue-X commit>` — reverting the enable commit puts queue X back to `disabled: true` without touching the other queues. The legacy workflow doesn't need to be reinstated unless ALL queues end up disabled, in which case revert the Day-14 deletion commit too.
 
-Per-queue enable order within Day 6-13 (feature vs bug vs design first): **OPEN — Plan 2 author's call.** Bundled together in the spec because the conflict surface between them is small.
+**Per-queue enable order within Day 6-13 (resolved by Plan 2):** `queue:bug` first, `queue:feature` second, `queue:design` third.
+
+- `queue:bug` first: highest priority (4) and highest blast-radius — enabling it earliest gives the longest observation window before the Day-14 `auto-update-prs.yml` retirement.
+- `queue:feature` second: highest volume (every dev-agent run produces a feature PR) and operationally similar to `queue:bug`, making the mental model easy.
+- `queue:design` last: lowest priority (0), lowest risk (CSS/copy tweaks only), lighter CI gate (`lint+unit` only). Last-in is appropriate for the queue whose failure modes are visual rather than structural.
+
+Allow ~60 seconds between consecutive enable commits — enough time to confirm the previous queue's first PR drained cleanly before the next queue joins.
 
 ## 12. Owner deliverables
 
@@ -199,7 +205,6 @@ Tracked here so a future implementer can see at a glance what's still unsettled.
 | Open item                                            | Resolved by                  |
 | ---------------------------------------------------- | ---------------------------- |
 | Jira retry exponential-backoff seed and cap          | Plan 3                       |
-| Per-queue enable order within Day 6-13               | Plan 2                       |
 | Cost-report owner (Plan 3 vs Plan 4)                 | Plan 3 author claims or punts |
 | Failure-escalation transport (ntfy vs Slack vs both) | Whichever downstream plan picks up escalation |
 | Exact JQL strings for Owner's two filter URLs        | Plan 3                       |

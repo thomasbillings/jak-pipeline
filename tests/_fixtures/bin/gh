@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# PATH-shim for gh used in tests. Emits canned JSON based on GH_STUB_MODE / GH_CHECKS_MODE.
+#
+# GH_STUB_MODE (reviews endpoint):
+#   reviews-approved-no-blockers   — approved review, **Blockers (0)** (real pr-reviewer format)
+#   reviews-approved-has-blockers  — commented review, **Blockers (1)**
+#   reviews-empty                  — empty array
+#
+# GH_CHECKS_MODE (check-runs endpoint):
+#   green   — all checks success (default)
+#   failing — one check is failure
+
+ARGS="$*"
+
+if echo "$ARGS" | grep -q 'check-runs\|check_runs\|commits/'; then
+  case "${GH_CHECKS_MODE:-green}" in
+    failing)
+      cat <<'JSON'
+{"check_runs":[{"name":"lint","conclusion":"success"},{"name":"test","conclusion":"failure"}]}
+JSON
+      ;;
+    *)
+      cat <<'JSON'
+{"check_runs":[{"name":"lint","conclusion":"success"},{"name":"test","conclusion":"success"}]}
+JSON
+      ;;
+  esac
+elif echo "$ARGS" | grep -q 'reviews'; then
+  case "${GH_STUB_MODE:-reviews-approved-no-blockers}" in
+    reviews-approved-no-blockers)
+      # Use real pr-reviewer format: **Blockers (N)**
+      cat <<'JSON'
+[{"id":1,"commit_id":"abc123","user":{"login":"github-actions[bot]"},"state":"APPROVED","body":"## Independent code review\n\n**Verdict:** APPROVE\n\n**Blockers (0)**\n\n**Should-fix (0)**\n\n**Nits (0)**\n\n**What looked good:** Implementation is clean."}]
+JSON
+      ;;
+    reviews-approved-has-blockers)
+      # One blocker present — should refuse
+      cat <<'JSON'
+[{"id":1,"commit_id":"abc123","user":{"login":"github-actions[bot]"},"state":"COMMENTED","body":"## Independent code review\n\n**Verdict:** REQUEST CHANGES\n\n**Blockers (1)**\n- Missing tenant scope — see inline on `src/file.ts:42`\n\n**Should-fix (0)**\n\n**Nits (0)**"}]
+JSON
+      ;;
+    reviews-empty)
+      echo '[]'
+      ;;
+    *)
+      echo '[]'
+      ;;
+  esac
+else
+  echo '[]'
+fi
