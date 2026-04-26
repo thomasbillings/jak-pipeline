@@ -76,32 +76,41 @@ describe('templates/phase-rollout-commits.md', () => {
     mkdirSync(tmpDir, { recursive: true });
 
     try {
-      // Init a git repo and copy the template
+      // Init a git repo and copy the template as root-level .mergify.yml
+      // (matches how install.sh places it: cp .mergify.yml.tmpl <project>/.mergify.yml)
       spawnSync('git', ['init'], { cwd: tmpDir });
       spawnSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
       spawnSync('git', ['config', 'user.name', 'Test'], { cwd: tmpDir });
-      mkdirSync(tmpDir + '/templates', { recursive: true });
-      writeFileSync(tmpDir + '/templates/.mergify.yml', readFileSync(TEMPLATE_PATH, 'utf-8'));
+      writeFileSync(tmpDir + '/.mergify.yml', readFileSync(TEMPLATE_PATH, 'utf-8'));
       spawnSync('git', ['add', '-A'], { cwd: tmpDir });
       spawnSync('git', ['commit', '-m', 'init'], { cwd: tmpDir });
 
       const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-      // Extract diff blocks from the cookbook
+      // Extract diff blocks from the cookbook (only blocks that start with ---)
       const diffBlocks = content.match(/```diff\n([\s\S]*?)```/g) ?? [];
+      const unifiedDiffs = diffBlocks.filter((b) => b.includes('--- a/'));
 
-      for (const block of diffBlocks) {
+      expect(unifiedDiffs.length, 'expected at least 5 unified diff blocks (one per queue enable)').toBeGreaterThanOrEqual(5);
+
+      // Apply diffs sequentially — each one modifies the file so subsequent diffs
+      // use context matching rather than exact line numbers.
+      for (const block of unifiedDiffs) {
         const diff = block.replace(/^```diff\n/, '').replace(/```$/, '');
-        // Write the diff to a temp file
         const diffPath = tmpDir + '/test.patch';
         writeFileSync(diffPath, diff);
-        const result = spawnSync('git', ['apply', '--check', diffPath], {
+        // --check verifies the patch can apply; --3way allows context offset after prior patches
+        const checkResult = spawnSync('git', ['apply', '--check', '--3way', diffPath], {
           cwd: tmpDir,
           encoding: 'utf-8',
         });
-        if (result.status !== 0) {
-          // If --check fails, it may be because this diff depends on a previous one having been applied
-          // Apply previous diffs and retry — not required for red phase
-        }
+        expect(
+          checkResult.status,
+          `git apply --check failed for diff block:\n${diff}\nstderr: ${checkResult.stderr}`,
+        ).toBe(0);
+        // Actually apply so subsequent diffs see the updated file
+        spawnSync('git', ['apply', diffPath], { cwd: tmpDir });
+        spawnSync('git', ['add', '-A'], { cwd: tmpDir });
+        spawnSync('git', ['commit', '-m', 'apply'], { cwd: tmpDir });
       }
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
