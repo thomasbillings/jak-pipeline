@@ -22,7 +22,7 @@ DOWNSTREAM_ROOT="${JAK_DOWNSTREAM_ROOT:-${DOWNSTREAM_ROOT:-$PWD}}"
 # tests against a Jira-only fixture, which doesn't have .claude/agents/ or .git/).
 PLAN3_ONLY="${PLAN3_ONLY:-0}"
 if [[ "$PLAN3_ONLY" == "1" ]]; then
-  echo "[Plan 2] SKIP (PLAN3_ONLY=1 — Plan 3 only)"
+  echo "[Plan 2] SKIP (PLAN3_ONLY=1)"
 else
 
 PLAN2_ERRORS=()
