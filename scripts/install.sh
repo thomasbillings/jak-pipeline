@@ -20,9 +20,13 @@ PLAN1_ERRORS=()
 # (i) Build the MCP server if dist/ is missing
 MCP_SRC="${JAK_SKILL_ROOT}/mcp/mergify"
 if [ ! -f "${MCP_SRC}/dist/server.js" ]; then
-  echo "[Plan 1] Building MCP server (npm ci + npm run build)..."
-  (cd "$MCP_SRC" && npm ci --silent && npm run build --silent) || \
-    PLAN1_ERRORS+=("FAIL: could not build MCP server at ${MCP_SRC} — run 'cd mcp/mergify && npm ci && npm run build' in the skill repo first")
+  if [[ "${JAK_PLAN1_SKIP_NPM:-0}" == "1" ]]; then
+    PLAN1_ERRORS+=("dist/server.js missing — pre-build mcp/mergify (npm run build) before running install.sh with JAK_PLAN1_SKIP_NPM=1")
+  else
+    echo "[Plan 1] Building MCP server (npm ci + npm run build)..."
+    (cd "$MCP_SRC" && npm ci --silent && npm run build --silent) || \
+      PLAN1_ERRORS+=("FAIL: could not build MCP server at ${MCP_SRC} — run 'cd mcp/mergify && npm ci && npm run build' in the skill repo first")
+  fi
 fi
 
 # (ii) Copy MCP server into <downstream>/.claude/mcp/mergify/
@@ -479,6 +483,24 @@ elif [ -f "$STORYBOOK_SRC" ]; then
 else
   PLAN4_ERRORS+=("MISSING: $STORYBOOK_SRC — run 'git pull' in jak-pipeline skill")
 fi
+
+# --- Step (iii.5): copy UAT lifecycle scripts ---
+# Runbook §4 (UAT rollback) references these paths; they're the dispatcher
+# and the four local-docker lifecycle scripts.
+UAT_SCRIPTS_DEST="${DOWNSTREAM_ROOT}/scripts/jak-pipeline/uat"
+UAT_SCRIPTS_SRC="${JAK_SKILL_ROOT}/scripts/uat"
+mkdir -p "$UAT_SCRIPTS_DEST"
+for script in run.sh local-docker-start.sh local-docker-stop.sh local-docker-accept.sh local-docker-reject.sh; do
+  src="${UAT_SCRIPTS_SRC}/${script}"
+  dest="${UAT_SCRIPTS_DEST}/${script}"
+  if [ ! -f "$src" ]; then
+    PLAN4_ERRORS+=("MISSING: $src — run 'git pull' in jak-pipeline skill")
+  else
+    cp "$src" "$dest"
+    chmod +x "$dest"
+    echo "[Plan 4] ✓ Installed scripts/jak-pipeline/uat/${script}"
+  fi
+done
 
 # --- Step (iv): prompt for CF_PAGES_PROJECT ---
 PLAN4_CF_SENTINEL="CF_PAGES_PROJECT"

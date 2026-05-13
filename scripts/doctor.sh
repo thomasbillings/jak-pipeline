@@ -371,6 +371,21 @@ else
   echo "[Plan 4] ✓ .github/workflows/storybook-preview.yml exists and references CF_PAGES_PROJECT"
 fi
 
+# (iii.5) Verify UAT lifecycle scripts are installed and executable
+UAT_SCRIPTS_DIR="${DOWNSTREAM_ROOT}/scripts/jak-pipeline/uat"
+for uat_script in run.sh local-docker-start.sh local-docker-stop.sh local-docker-accept.sh local-docker-reject.sh; do
+  uat_path="${UAT_SCRIPTS_DIR}/${uat_script}"
+  if [ ! -f "$uat_path" ]; then
+    PLAN4_ERRORS+=("MISSING: $uat_path — run scripts/install.sh Plan 4 section")
+    PLAN4_PASS=false
+  elif [ ! -x "$uat_path" ]; then
+    PLAN4_ERRORS+=("NOT EXECUTABLE: $uat_path — chmod +x")
+    PLAN4_PASS=false
+  else
+    echo "[Plan 4] ✓ scripts/jak-pipeline/uat/${uat_script} present and executable"
+  fi
+done
+
 # (iv) Verify CF_API_TOKEN secret is configured via gh secret list
 if command -v gh &>/dev/null; then
   if gh secret list 2>/dev/null | grep -q 'CF_API_TOKEN'; then
