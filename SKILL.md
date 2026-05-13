@@ -62,17 +62,21 @@ Required CLIs on the install machine: `gh`, `jq`, `uuidgen`, `flock`, `node` ≥
 
 ## Status
 
-**SCAFFOLD-ONLY.** This is Plan 0 of a 5-plan delivery sequence:
+**Plans 0–4 delivered.** `scripts/install.sh` runs end-to-end against a target project; `scripts/doctor.sh` validates the install. First-time installs and idempotent re-runs both exit 0.
 
 | Plan       | Scope                                                                                                                         | Status                  |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| **Plan 0** | Skill scaffold (this) — directory tree, SKILL.md, architecture reference, kanban-states reference, scripts skeletons.         | **delivered**           |
-| Plan 1     | Mergify MCP server (TS/stdio, 6 role-gated tools, redaction wrapper, failing-test fixture, pre-commit token-prefix hook).     | not started             |
-| Plan 2     | `.mergify.yml.tmpl` + named-queue config; agent label-application transitions; `_label-log.jsonl` writer; phased activation. | not started             |
-| Plan 3     | Jira board provisioning, idempotent transition helper, `tick.sh` drift reconciliation, `_jira-retry.json` queue.              | not started             |
-| Plan 4     | UAT environment Docker stack, pluggable strategy abstraction, Storybook preview-per-PR, first install on TnT Finance.         | not started             |
+| **Plan 0** | Skill scaffold — directory tree, SKILL.md, architecture reference, kanban-states reference, scripts skeletons.                | **delivered**           |
+| **Plan 1** | Mergify MCP server (TS/stdio, 6 role-gated tools, redaction wrapper, failing-test fixture, pre-commit token-prefix hook).     | **delivered** (PR #1)   |
+| **Plan 2** | `.mergify.yml.tmpl` + named-queue config; agent label-application transitions; `_label-log.jsonl` writer; phased activation.  | **delivered** (PR #2)   |
+| **Plan 3** | Jira board provisioning, idempotent transition helper, `tick.sh` drift reconciliation, `_jira-retry.json` queue.              | **delivered** (PR #3)   |
+| **Plan 4** | UAT environment Docker stack, pluggable strategy abstraction, Storybook preview-per-PR. (First install on TnT Finance pending.) | **delivered** (PR #5 — recovered after PR #4 was merged into the wrong base) |
 
-Until Plans 1-4 land, `scripts/install.sh` / `scripts/uninstall.sh` / `scripts/doctor.sh` exit non-zero with a "scaffold-only — see Plan N" message.
+Open follow-ups (not Plan-numbered):
+
+- `install.sh`'s Plan 1 step is still a TODO — the MCP server isn't copied into a target's `.claude/mcp/` automatically. The server itself is fully built and tested under `mcp/mergify/`; only the install-side wiring is missing.
+- No CI workflow on this repo. Plans 1–3 merged without ever running their own test suite, which is how 4 install-script tests went red on main undetected until 2026-05-13. Adding GitHub Actions to run `npm test` on PR is the next obvious gap.
+- Plan 4's "first install on TnT Finance" deliverable is still outstanding — the scripts and templates are shipped, but no downstream has been bootstrapped yet.
 
 ## References
 
