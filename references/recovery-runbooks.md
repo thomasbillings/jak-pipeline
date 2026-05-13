@@ -208,8 +208,6 @@ The hook (`scripts/hooks/pre-commit`) exits non-zero with the matched prefix. Un
 ## 4. UAT rollback
 
 > **Owned by:** Plan 4 (UAT environment + first install on TnT Finance).
->
-> **Install-side dependency:** the UAT lifecycle scripts referenced below (`scripts/jak-pipeline/uat/local-docker-{start,stop}.sh`) require **PR-C** (Plan 4 install wiring) to land. Until PR-C, run them from the skill repo directly: `bash $JAK_SKILL_ROOT/scripts/uat/local-docker-stop.sh <overlay>`. The runbook target paths below assume the PR-C layout.
 
 ### Symptoms
 
