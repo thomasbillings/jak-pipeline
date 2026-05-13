@@ -40,7 +40,8 @@ describe('install.sh — Plan 3 section (a16)', () => {
         env: {
           ...process.env,
           DOWNSTREAM_ROOT: tmpDir,
-          PLAN3_ONLY: '1'  // signal to only run Plan 3 section
+          PLAN3_ONLY: '1',  // signal to only run Plan 3 section
+          JAK_SKIP_PREFLIGHT: '1'
         }
       });
 
@@ -70,7 +71,7 @@ describe('install.sh — Plan 3 section (a16)', () => {
 
     await new Promise<void>((resolve) => {
       const child = spawn('bash', [INSTALL_SCRIPT], {
-        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1' }
+        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1', JAK_SKIP_PREFLIGHT: '1' }
       });
       child.on('close', () => resolve());
     });
@@ -89,7 +90,7 @@ describe('install.sh — Plan 3 section (a16)', () => {
 
     await new Promise<void>((resolve) => {
       const child = spawn('bash', [INSTALL_SCRIPT], {
-        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1' }
+        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1', JAK_SKIP_PREFLIGHT: '1' }
       });
       child.on('close', () => resolve());
     });
@@ -112,7 +113,7 @@ describe('install.sh — Plan 3 section (a16)', () => {
     const runInstall = () =>
       new Promise<void>((resolve) => {
         const child = spawn('bash', [INSTALL_SCRIPT], {
-          env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1' }
+          env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1', JAK_SKIP_PREFLIGHT: '1' }
         });
         child.on('close', () => resolve());
       });
@@ -136,7 +137,7 @@ describe('install.sh — Plan 3 section (a16)', () => {
 
     await new Promise<void>((resolve) => {
       const child = spawn('bash', [INSTALL_SCRIPT], {
-        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1' }
+        env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN3_ONLY: '1', JAK_SKIP_PREFLIGHT: '1' }
       });
       child.on('close', () => resolve());
     });

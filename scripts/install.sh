@@ -10,6 +10,100 @@ JAK_SKILL_ROOT="${JAK_SKILL_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 DOWNSTREAM_ROOT="${JAK_DOWNSTREAM_ROOT:-${DOWNSTREAM_ROOT:-$PWD}}"
 
 # ---------------------------------------------------------------------------
+# Pre-flight — verify the downstream is ready to receive an install.
+# ---------------------------------------------------------------------------
+#
+# JAK_SKIP_PREFLIGHT=1   bypass all pre-flight checks (test fixtures, recovery
+#                       installs where you know the environment is OK).
+# JAK_REMOTE_CHECKS=1   additionally run remote checks: GitHub branch protection
+#                       on main, Mergify GitHub App install. Defaults off so the
+#                       script doesn't make network calls without explicit opt-in.
+
+PREFLIGHT_ERRORS=()
+PREFLIGHT_WARNINGS=()
+
+if [[ "${JAK_SKIP_PREFLIGHT:-0}" == "1" ]]; then
+  echo "[Pre-flight] SKIP (JAK_SKIP_PREFLIGHT=1)"
+else
+
+# (a) Required CLIs on the install machine
+for cli in gh python3 flock node bash; do
+  if ! command -v "$cli" >/dev/null 2>&1; then
+    PREFLIGHT_ERRORS+=("MISSING CLI: $cli — install it before running install.sh")
+  fi
+done
+
+# Node >= 20
+if command -v node >/dev/null 2>&1; then
+  _node_major=$(node -e 'process.stdout.write(String(process.versions.node.split(".")[0]))')
+  if [ "$_node_major" -lt 20 ] 2>/dev/null; then
+    PREFLIGHT_ERRORS+=("Node version ${_node_major} too old — node ≥ 20 required (MCP server uses ESM + top-level await)")
+  fi
+fi
+
+# Bash >= 4 (associative arrays, [[ ]] features)
+_bash_major="${BASH_VERSINFO[0]:-0}"
+if [ "$_bash_major" -lt 4 ] 2>/dev/null; then
+  PREFLIGHT_ERRORS+=("Bash version $_bash_major too old — bash ≥ 4 required")
+fi
+
+# (b) coordinator-pipeline must already be installed
+# The skill assumes <downstream>/scripts/coordinator/tick.sh exists and the
+# pr-reviewer agent file is present at .claude/agents/pr-reviewer.md.
+if [ ! -f "${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh" ]; then
+  PREFLIGHT_ERRORS+=("MISSING: coordinator-pipeline not detected (no ${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh) — install coordinator-pipeline first; see ~/.claude/skills/coordinator-pipeline/SKILL.md")
+fi
+if [ ! -f "${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md" ]; then
+  PREFLIGHT_WARNINGS+=("WARN: .claude/agents/pr-reviewer.md not present — the Plan 2 pr-reviewer overlay will be skipped at install time; create the pr-reviewer agent first (coordinator-pipeline does NOT bundle this agent by default)")
+fi
+
+# (c) Downstream is a git repo (Mergify operates on PRs)
+if [ ! -d "${DOWNSTREAM_ROOT}/.git" ]; then
+  PREFLIGHT_ERRORS+=("MISSING: ${DOWNSTREAM_ROOT} is not a git repository — run 'git init' first")
+fi
+
+# (d) Optional remote checks
+if [[ "${JAK_REMOTE_CHECKS:-0}" == "1" ]]; then
+  if command -v gh >/dev/null 2>&1; then
+    # Determine owner/repo from git remote
+    _origin=$(git -C "${DOWNSTREAM_ROOT}" remote get-url origin 2>/dev/null || true)
+    if [ -z "$_origin" ]; then
+      PREFLIGHT_WARNINGS+=("WARN: no 'origin' git remote — skipping remote checks")
+    else
+      _owner_repo=$(echo "$_origin" | sed -E 's#.*[:/]([^/]+/[^/.]+)(\.git)?$#\1#')
+      # Branch protection on main
+      if gh api "repos/${_owner_repo}/branches/main/protection" >/dev/null 2>&1; then
+        echo "[Pre-flight] ✓ Branch protection on main is active"
+      else
+        PREFLIGHT_WARNINGS+=("WARN: branch protection on main is NOT active for ${_owner_repo} — Mergify queues only mean something when main is protected. See: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches")
+      fi
+      # Mergify GitHub App install (probe — best effort)
+      if gh api "repos/${_owner_repo}/installation" 2>/dev/null | grep -qi mergify; then
+        echo "[Pre-flight] ✓ Mergify GitHub App appears installed"
+      else
+        PREFLIGHT_WARNINGS+=("WARN: could not confirm Mergify GitHub App is installed on ${_owner_repo} — install at https://github.com/apps/mergify before activating queues")
+      fi
+    fi
+  fi
+fi
+
+# Report
+for err in "${PREFLIGHT_ERRORS[@]:-}"; do
+  echo "[Pre-flight] ✗ $err" >&2
+done
+for warn in "${PREFLIGHT_WARNINGS[@]:-}"; do
+  echo "[Pre-flight] $warn" >&2
+done
+
+if [ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]; then
+  echo "[Pre-flight] ✗ Hard checks failed — aborting. Set JAK_SKIP_PREFLIGHT=1 to bypass (not recommended)." >&2
+  exit 1
+fi
+
+echo "[Pre-flight] ✓ All hard checks passed"
+fi  # end: JAK_SKIP_PREFLIGHT != 1
+
+# ---------------------------------------------------------------------------
 # Plan 1 — Mergify MCP server install
 # ---------------------------------------------------------------------------
 
