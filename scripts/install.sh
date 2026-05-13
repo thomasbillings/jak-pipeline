@@ -20,9 +20,13 @@ PLAN1_ERRORS=()
 # (i) Build the MCP server if dist/ is missing
 MCP_SRC="${JAK_SKILL_ROOT}/mcp/mergify"
 if [ ! -f "${MCP_SRC}/dist/server.js" ]; then
-  echo "[Plan 1] Building MCP server (npm ci + npm run build)..."
-  (cd "$MCP_SRC" && npm ci --silent && npm run build --silent) || \
-    PLAN1_ERRORS+=("FAIL: could not build MCP server at ${MCP_SRC} — run 'cd mcp/mergify && npm ci && npm run build' in the skill repo first")
+  if [[ "${JAK_PLAN1_SKIP_NPM:-0}" == "1" ]]; then
+    PLAN1_ERRORS+=("dist/server.js missing — pre-build mcp/mergify (npm run build) before running install.sh with JAK_PLAN1_SKIP_NPM=1")
+  else
+    echo "[Plan 1] Building MCP server (npm ci + npm run build)..."
+    (cd "$MCP_SRC" && npm ci --silent && npm run build --silent) || \
+      PLAN1_ERRORS+=("FAIL: could not build MCP server at ${MCP_SRC} — run 'cd mcp/mergify && npm ci && npm run build' in the skill repo first")
+  fi
 fi
 
 # (ii) Copy MCP server into <downstream>/.claude/mcp/mergify/
