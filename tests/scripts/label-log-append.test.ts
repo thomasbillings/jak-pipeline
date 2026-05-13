@@ -132,4 +132,45 @@ describe('scripts/label-log-append.sh', () => {
       .split('\n');
     expect(lines.length).toBe(2);
   });
+
+  // Regression for audit finding C9 — architecture §7 specifies blocker_count=N/A
+  // for user-applied rows (e.g. retroactive queue:plan entries).
+  it('accepts blocker_count=N/A for user-applied rows (emits JSON null)', () => {
+    const r = run([
+      'user',
+      '7',
+      'queue:plan',
+      'N/A',
+      'N/A',
+      'user-applied',
+    ]);
+    expect(r.status).toBe(0);
+    const logPath = tmpDir + '/agents/_label-log.jsonl';
+    expect(existsSync(logPath)).toBe(true);
+
+    const line = readFileSync(logPath, 'utf-8').trim();
+    const row = JSON.parse(line);
+
+    expect(row.applied_by).toBe('user');
+    expect(row.pr_number).toBe(7);
+    expect(row.label).toBe('queue:plan');
+    // Architecture §7: blocker_count is N/A for user-applied — emit as JSON null
+    expect(row.blocker_count).toBeNull();
+    expect(row.tests_state).toBe('N/A');
+    expect(row.reasoning).toBe('user-applied');
+  });
+
+  it('accepts any non-numeric blocker_count by emitting null (defensive)', () => {
+    const r = run([
+      'user',
+      '7',
+      'queue:plan',
+      'unknown',
+      'N/A',
+      'manual',
+    ]);
+    expect(r.status).toBe(0);
+    const row = JSON.parse(readFileSync(tmpDir + '/agents/_label-log.jsonl', 'utf-8').trim());
+    expect(row.blocker_count).toBeNull();
+  });
 });

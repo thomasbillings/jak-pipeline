@@ -73,12 +73,22 @@ TESTS_STATE_ESC="$(json_escape "$TESTS_STATE")"
 REASONING_ESC="$(json_escape "$REASONING")"
 NOW_ESC="$(json_escape "$NOW")"
 
-# Append JSONL row (all string fields are JSON-escaped)
-printf '{"applied_by":"%s","pr_number":%d,"label":"%s","blocker_count":%d,"tests_state":"%s","reasoning":"%s","applied_at":"%s"}\n' \
+# blocker_count is numeric for agent-applied rows. Architecture §7 permits
+# "N/A" for user-applied rows (e.g. queue:plan). Emit as JSON null in that
+# case, otherwise as an integer.
+if [[ "$BLOCKER_COUNT" =~ ^[0-9]+$ ]]; then
+  BLOCKER_COUNT_JSON="$BLOCKER_COUNT"
+else
+  BLOCKER_COUNT_JSON="null"
+fi
+
+# Append JSONL row (all string fields are JSON-escaped; blocker_count emitted
+# unquoted so JSON parsers see it as a number or null).
+printf '{"applied_by":"%s","pr_number":%d,"label":"%s","blocker_count":%s,"tests_state":"%s","reasoning":"%s","applied_at":"%s"}\n' \
   "$APPLIED_BY_ESC" \
   "$PR_NUMBER" \
   "$LABEL_ESC" \
-  "$BLOCKER_COUNT" \
+  "$BLOCKER_COUNT_JSON" \
   "$TESTS_STATE_ESC" \
   "$REASONING_ESC" \
   "$NOW_ESC" \
