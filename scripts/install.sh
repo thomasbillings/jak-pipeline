@@ -17,6 +17,14 @@ DOWNSTREAM_ROOT="${JAK_DOWNSTREAM_ROOT:-${DOWNSTREAM_ROOT:-$PWD}}"
 # ---------------------------------------------------------------------------
 # Plan 2 — Mergify config + label trust boundary + branch-ticket binding
 # ---------------------------------------------------------------------------
+
+# PLAN3_ONLY=1 limits this run to the Plan 3 section (used by Plan 3 install
+# tests against a Jira-only fixture, which doesn't have .claude/agents/ or .git/).
+PLAN3_ONLY="${PLAN3_ONLY:-0}"
+if [[ "$PLAN3_ONLY" == "1" ]]; then
+  echo "[Plan 2] SKIP (PLAN3_ONLY=1 — Plan 3 only)"
+else
+
 PLAN2_ERRORS=()
 
 # (i) Copy .mergify.yml template
@@ -101,6 +109,9 @@ if [ -d "${DOWNSTREAM_ROOT}/.husky" ]; then
   fi
 else
   HOOK_FILE="${DOWNSTREAM_ROOT}/.git/hooks/pre-push"
+  # Ensure .git/hooks/ exists — git creates it automatically, but a non-git
+  # downstream (test fixture, fresh sandbox) won't have it.
+  mkdir -p "$(dirname "$HOOK_FILE")"
   if [ ! -f "$HOOK_FILE" ]; then
     echo "#!/usr/bin/env bash" > "$HOOK_FILE"
   fi
@@ -136,6 +147,8 @@ if [ ${#PLAN2_ERRORS[@]} -gt 0 ]; then
 fi
 
 echo "[Plan 2] ✓ Plan 2 install complete"
+
+fi  # end: PLAN3_ONLY != 1 (Plan 2 wrapper)
 
 # ---------------------------------------------------------------------------
 # Plan 3 — Jira integration: transition helper, drift reconciliation,
