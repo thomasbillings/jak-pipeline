@@ -27,6 +27,7 @@ function runInstall(tmpDir: string, extraEnv: Record<string, string> = {}): Prom
         JAK_SKILL_ROOT: SKILL_ROOT,
         PLAN1_ONLY: '1',
         JAK_PLAN1_SKIP_NPM: '1',
+        JAK_SKIP_PREFLIGHT: '1',
         ...extraEnv,
       },
     });
