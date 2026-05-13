@@ -20,26 +20,27 @@ This file holds operational recovery procedures for the jak-pipeline. Every runb
 
 ### Diagnosis
 
+The 6 Mergify MCP tools are stdio-registered, not shell CLIs — operators invoke them by asking Claude inside a coordinator-role session, not by running a shell command. The shell commands below cover the parts of diagnosis that don't go through MCP. The MCP-side prompts to use are shown alongside.
+
 ```bash
-# 1. Read the live queue state (cached 30s — re-run if you need fresh)
-#    via the role-gated MCP server (coordinator role)
-#    or directly: gh api repos/<org>/<repo>/actions/runs?...
-mergify_get_queue_summary
-
-# 2. Check PR-specific eligibility — which queue_conditions failed?
-mergify_get_queue_details --pr <PR>
-mergify_check_pr_eligibility --pr <PR>
-
-# 3. Compare the branch name against the queue's head glob
+# 1. Compare the branch name against the queue's head glob
 #    in .mergify.yml. Example: queue:feature requires head~=^feat/
 grep -A 1 "name: feature" .mergify.yml | grep head
 
-# 4. Compare the failing check names against the branch's actual checks
+# 2. Compare the failing check names against the branch's actual checks
 gh pr checks <PR>
 
-# 5. Read the label-trust audit log for ordering anomalies
+# 3. Read the label-trust audit log for ordering anomalies
 tail -20 agents/_label-log.jsonl | python3 -m json.tool
 ```
+
+**MCP-side diagnosis (Claude session, coordinator role):**
+
+Ensure `MERGIFY_MCP_ROLE=coordinator` is set in the MCP server's `.env`, then ask Claude:
+
+> "Read the Mergify queue summary and tell me which queues have backlog. Then for PR &lt;N&gt;, run `mergify_get_queue_details` and `mergify_check_pr_eligibility` and report which `queue_conditions` are failing."
+
+Claude invokes `mergify_get_queue_summary` (30s cache), `mergify_get_queue_details(pr=<N>)`, and `mergify_check_pr_eligibility(pr=<N>)` via stdio MCP. The role gate enforces that only the `coordinator`, `pr-reviewer`, and `dev-agent` roles can read these tools.
 
 ### Recovery
 
@@ -57,19 +58,29 @@ gh pr edit <PR> --add-label queue:bug
 ```
 
 **If a queue is deadlocked (multiple PRs waiting, no progress):**
-Coordinator role only — freeze the queue, investigate, then unfreeze.
-```bash
-mergify_set_queue_state --queue feature --state frozen --reason "investigating deadlock"
-# … investigate / fix root cause …
-mergify_set_queue_state --queue feature --state active
-```
+Coordinator role only. Inside a Claude Code session with `MERGIFY_MCP_ROLE=coordinator` in the MCP `.env`, ask:
+
+> "Call `mergify_set_queue_state` with `state='locked'`, `reason='investigating deadlock on queue:feature'`. After I've investigated, I'll ask you to set it back to `unlocked`."
+
+The tool's input schema accepts `state` (one of `locked` / `unlocked`) and `reason` — note `locked`/`unlocked` is the Mergify state vocabulary; "freeze"/"thaw" in casual speech maps to `locked`/`unlocked` in the API. Only the `coordinator` role can invoke this — the `pr-reviewer` and `dev-agent` roles get a role-refusal envelope.
 
 **If a single PR poisoned the queue (kept failing speculative checks):**
-```bash
-mergify_replay_pr --pr <PR>   # coordinator role only — re-runs queue evaluation
-```
+Coordinator role only. Ask Claude:
 
-**Note on label-trust:** Only the `pr-reviewer` agent is allowed to apply `queue:*` labels, and only after BLOCKERs=0 + tests-green. If a queue label appears without a matching `agents/_label-log.jsonl` entry, treat it as a trust-boundary breach and investigate `scripts/label-gate-decide.sh` before unblocking the queue.
+> "Call `mergify_replay_pr` with `pr=<N>`, `reason='speculative checks regressed; replaying'`."
+
+The handler calls Mergify's replay endpoint via the role-gated MCP server, which re-runs queue evaluation for that PR.
+
+**Break-glass paths if MCP is unavailable:**
+
+If the MCP server is itself broken (env-leak guard tripped, credentials expired, build artefacts missing), don't wait — use the escape hatches:
+
+- Mergify web UI at `https://dashboard.mergify.com/github/<org>/queues` lets a human freeze / replay manually.
+- `gh api repos/<org>/<repo>/branches/main/protection` can temporarily block all merges via branch protection if every queue is broken.
+
+Then fix the MCP server (see Runbook §3 — MCP credential rotation).
+
+**Note on label-trust:** Only the `pr-reviewer` agent is allowed to apply `queue:*` labels, and only after BLOCKERs=0 + tests-green. If a queue label appears without a matching `agents/_label-log.jsonl` entry, treat it as a trust-boundary breach and investigate `.claude/jak-pipeline/scripts/label-gate-decide.sh` before unblocking the queue.
 
 ---
 
@@ -162,7 +173,7 @@ for KEY in MERGIFY_API_KEY MERGIFY_ORG GITHUB_TOKEN MERGIFY_MCP_ROLE; do
 done
 
 # 3. Run doctor.sh — it imports the redaction wrapper and validates the env file
-DOWNSTREAM_ROOT=. bash scripts/doctor.sh
+DOWNSTREAM_ROOT=. bash scripts/jak-pipeline/doctor.sh
 
 # 4. Bypass redaction for a single diagnostic call (DEBUG mode only — never commit)
 #    Temporarily edit src/redaction.ts to passthrough, rebuild, restart, then revert.
@@ -197,6 +208,8 @@ The hook (`scripts/hooks/pre-commit`) exits non-zero with the matched prefix. Un
 ## 4. UAT rollback
 
 > **Owned by:** Plan 4 (UAT environment + first install on TnT Finance).
+>
+> **Install-side dependency:** the UAT lifecycle scripts referenced below (`scripts/jak-pipeline/uat/local-docker-{start,stop}.sh`) require **PR-C** (Plan 4 install wiring) to land. Until PR-C, run them from the skill repo directly: `bash $JAK_SKILL_ROOT/scripts/uat/local-docker-stop.sh <overlay>`. The runbook target paths below assume the PR-C layout.
 
 ### Symptoms
 
