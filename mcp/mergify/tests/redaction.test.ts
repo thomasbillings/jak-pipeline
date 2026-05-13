@@ -3,13 +3,19 @@ import { describe, it, expect } from 'vitest';
 // These tests verify the redaction wrapper per acceptance criterion a8.
 // The redactErrorEnvelope function does not exist yet — all tests FAIL red.
 
-// Real-looking synthetic tokens for each required prefix (a8 explicit requirement)
+// Real-looking synthetic tokens for each supported prefix.
+// a8 baseline: mrg_live_, mrg_test_, ghp_, ghs_, ghr_, github_pat_.
+// 2026-05-13 audit expansion: gho_ (OAuth user-to-server), ghu_ (new style),
+// ghe_ (enterprise server).
 const SYNTHETIC_TOKENS = {
   mrg_live: 'mrg_live_FAKEFAKEFAKEFAKE1234567890abcdef',
   mrg_test: 'mrg_test_FAKEFAKEFAKEFAKE1234567890abcdef',
   ghp: 'ghp_FAKEFAKEFAKEFAKE1234567890abcdef',
   ghs: 'ghs_FAKEFAKEFAKEFAKE1234567890abcdef',
   ghr: 'ghr_FAKEFAKEFAKEFAKE1234567890abcdef',
+  gho: 'gho_FAKEFAKEFAKEFAKE1234567890abcdef',
+  ghu: 'ghu_FAKEFAKEFAKEFAKE1234567890abcdef',
+  ghe: 'ghe_FAKEFAKEFAKEFAKE1234567890abcdef',
   github_pat: 'github_pat_FAKEFAKEFAKEFAKE_1234567890abcdef',
 } as const;
 
@@ -71,6 +77,31 @@ describe('redaction wrapper (a8)', () => {
     const result = redact(env);
     expect(result.error).not.toContain(SYNTHETIC_TOKENS.github_pat);
     expect(result.error).not.toContain('github_pat_');
+  });
+
+  // 2026-05-13 audit expansion — newer GitHub token formats
+  it('strips gho_ (OAuth user-to-server) tokens from error message', async () => {
+    const redact = await getRedactFn();
+    const env: ErrorEnvelope = { error: `OAuth token: ${SYNTHETIC_TOKENS.gho}` };
+    const result = redact(env);
+    expect(result.error).not.toContain(SYNTHETIC_TOKENS.gho);
+    expect(result.error).not.toContain('gho_');
+  });
+
+  it('strips ghu_ (user-to-server new style) tokens from error message', async () => {
+    const redact = await getRedactFn();
+    const env: ErrorEnvelope = { error: `User token: ${SYNTHETIC_TOKENS.ghu}` };
+    const result = redact(env);
+    expect(result.error).not.toContain(SYNTHETIC_TOKENS.ghu);
+    expect(result.error).not.toContain('ghu_');
+  });
+
+  it('strips ghe_ (enterprise server) tokens from error message', async () => {
+    const redact = await getRedactFn();
+    const env: ErrorEnvelope = { error: `Enterprise token: ${SYNTHETIC_TOKENS.ghe}` };
+    const result = redact(env);
+    expect(result.error).not.toContain(SYNTHETIC_TOKENS.ghe);
+    expect(result.error).not.toContain('ghe_');
   });
 
   it('strips tokens from nested details object', async () => {

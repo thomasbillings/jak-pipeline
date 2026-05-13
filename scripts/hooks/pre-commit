@@ -6,8 +6,12 @@
 
 set -euo pipefail
 
-# Token patterns per a10: gh[psr]_, github_pat_, mrg_live_, mrg_test_
-PATTERNS='(gh[psr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|mrg_live_[A-Za-z0-9]+|mrg_test_[A-Za-z0-9]+)'
+# Token patterns:
+# - GitHub: classic PAT (ghp_), Actions session (ghs_), refresh (ghr_),
+#   OAuth user-to-server (gho_), user-to-server new style (ghu_),
+#   enterprise server (ghe_), fine-grained PAT (github_pat_)
+# - Mergify: production (mrg_live_), staging (mrg_test_)
+PATTERNS='(gh[psroue]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|mrg_live_[A-Za-z0-9]+|mrg_test_[A-Za-z0-9]+)'
 
 # Scan staged diff added lines only
 MATCHES=$(git diff --cached --unified=0 | grep '^+' | grep -E "$PATTERNS" || true)

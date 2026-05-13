@@ -4,13 +4,24 @@ export interface ErrorEnvelope {
   details?: unknown;
 }
 
-// Token prefixes per a8 — exact match required by the test spec
+// Token prefixes (per architecture §6 + 2026-05-13 audit expansion):
+// - Mergify: mrg_live_ (production), mrg_test_ (staging)
+// - GitHub classic PAT: ghp_
+// - GitHub Actions session: ghs_
+// - GitHub refresh: ghr_
+// - GitHub OAuth user-to-server: gho_
+// - GitHub user-to-server new style: ghu_
+// - GitHub enterprise server: ghe_
+// - GitHub fine-grained PAT: github_pat_
 const TOKEN_PATTERNS: RegExp[] = [
   /mrg_live_\S+/g,
   /mrg_test_\S+/g,
   /ghp_\S+/g,
   /ghs_\S+/g,
   /ghr_\S+/g,
+  /gho_\S+/g,
+  /ghu_\S+/g,
+  /ghe_\S+/g,
   /github_pat_\S+/g,
 ];
 

@@ -58,9 +58,12 @@ Every tool handler wraps its error envelope through `src/redaction.ts` before re
 - `ghp_…` — GitHub classic PAT
 - `ghs_…` — GitHub Actions session token
 - `ghr_…` — GitHub refresh token
+- `gho_…` — GitHub OAuth user-to-server token
+- `ghu_…` — GitHub user-to-server token (new style)
+- `ghe_…` — GitHub Enterprise Server token
 - `github_pat_…` — GitHub fine-grained PAT
 
-A leaked token in an HTTP error response body, a stack trace, or a header value will appear as `[REDACTED]` in the tool's output. `tests/redaction.test.ts` verifies this exhaustively for all six prefixes.
+A leaked token in an HTTP error response body, a stack trace, or a header value will appear as `[REDACTED]` in the tool's output. `tests/redaction.test.ts` verifies this exhaustively for all nine prefixes.
 
 ## Env-leak guard
 
@@ -73,7 +76,7 @@ it exits non-zero with a message naming the offending file. Place credentials at
 
 ## Pre-commit hook
 
-`scripts/hooks/pre-commit` scans staged diffs for token prefixes (`gh[psr]_`, `github_pat_`, `mrg_live_`, `mrg_test_`). Install it manually in either the skill repo or any downstream that hosts credentials:
+`scripts/hooks/pre-commit` scans staged diffs for token prefixes (`gh[psroue]_`, `github_pat_`, `mrg_live_`, `mrg_test_`). Install it manually in either the skill repo or any downstream that hosts credentials:
 
 ```bash
 ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit

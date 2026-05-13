@@ -121,6 +121,43 @@ describe('pre-commit hook (a10)', () => {
     }
   });
 
+  // 2026-05-13 audit expansion: newer GitHub token formats
+  it('exits non-zero when staged content contains gho_ (OAuth) token', () => {
+    const dir = setupTempRepo();
+    try {
+      stageFile(dir, 'secret.txt', 'OAUTH_TOKEN=gho_FAKEFAKEFAKE1234567890\n');
+      const { status, stderr } = runHook(dir);
+      expect(status).not.toBe(0);
+      expect(stderr).toContain('BLOCKED');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('exits non-zero when staged content contains ghu_ (user-to-server) token', () => {
+    const dir = setupTempRepo();
+    try {
+      stageFile(dir, 'secret.txt', 'USER_TOKEN=ghu_FAKEFAKEFAKE1234567890\n');
+      const { status, stderr } = runHook(dir);
+      expect(status).not.toBe(0);
+      expect(stderr).toContain('BLOCKED');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('exits non-zero when staged content contains ghe_ (enterprise) token', () => {
+    const dir = setupTempRepo();
+    try {
+      stageFile(dir, 'secret.txt', 'ENTERPRISE_TOKEN=ghe_FAKEFAKEFAKE1234567890\n');
+      const { status, stderr } = runHook(dir);
+      expect(status).not.toBe(0);
+      expect(stderr).toContain('BLOCKED');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('does not block on unstaged content containing tokens', () => {
     const dir = setupTempRepo();
     try {
