@@ -40,42 +40,45 @@ if [[ "$PLAN3_CHECK" == "1" ]]; then
   MCP_DIR="."  # placeholder; not used
 else
 
-MCP_DIR="$(dirname "$0")/../mcp/mergify"
-MCP_DIR="$(cd "$MCP_DIR" && pwd)"
+# Plan 1 checks resolve MCP_DIR from DOWNSTREAM_ROOT (the installed location:
+# <downstream>/.claude/mcp/mergify). Fall back to skill-repo layout when
+# running doctor.sh directly from the skill repo (used in dev / unit tests).
+DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-$PWD}"
+MCP_DIR="$DOWNSTREAM_ROOT/.claude/mcp/mergify"
+DOCTOR_MODE="downstream"
 
-# (i) Verify <downstream>/.claude/mcp/mergify/.env exists with the four required keys.
-# The downstream project root can be passed as DOWNSTREAM_ROOT or inferred from
-# the caller's working directory. Fall back to a "not configured" warning.
-DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-}"
-if [ -n "$DOWNSTREAM_ROOT" ]; then
-  MCP_ENV="$DOWNSTREAM_ROOT/.claude/mcp/mergify/.env"
-  if [ ! -f "$MCP_ENV" ]; then
-    PLAN1_ERRORS+=("MISSING: $MCP_ENV — create it from mcp/mergify/.env.example")
-    PLAN1_PASS=false
-  else
-    for KEY in MERGIFY_API_KEY MERGIFY_ORG GITHUB_TOKEN MERGIFY_MCP_ROLE; do
-      if ! grep -qE "^${KEY}\s*=" "$MCP_ENV"; then
-        PLAN1_ERRORS+=("MISSING KEY in $MCP_ENV: $KEY")
-        PLAN1_PASS=false
-      fi
-    done
-    if $PLAN1_PASS; then
-      echo "[Plan 1] ✓ $MCP_ENV exists with all 4 required keys"
-    fi
-  fi
-else
-  echo "[Plan 1] SKIP env-file check — set DOWNSTREAM_ROOT to enable"
+if [ ! -d "$MCP_DIR" ] && [ -d "$(dirname "$0")/../mcp/mergify" ]; then
+  MCP_DIR="$(cd "$(dirname "$0")/../mcp/mergify" && pwd)"
+  DOCTOR_MODE="skill-repo"
+  echo "[Plan 1] (skill-repo mode — MCP_DIR=$MCP_DIR)"
 fi
 
-# (ii) Verify the built server dist/ exists (dry-run mode: no real Mergify org needed).
+# (i) Verify <MCP_DIR>/.env exists with the four required keys.
+MCP_ENV="$MCP_DIR/.env"
+if [ ! -f "$MCP_ENV" ]; then
+  PLAN1_ERRORS+=("MISSING: $MCP_ENV — re-run install.sh Plan 1 section")
+  PLAN1_PASS=false
+else
+  for KEY in MERGIFY_API_KEY MERGIFY_ORG GITHUB_TOKEN MERGIFY_MCP_ROLE; do
+    if ! grep -qE "^${KEY}\s*=" "$MCP_ENV"; then
+      PLAN1_ERRORS+=("MISSING KEY in $MCP_ENV: $KEY")
+      PLAN1_PASS=false
+    fi
+  done
+  if $PLAN1_PASS; then
+    echo "[Plan 1] ✓ $MCP_ENV exists with all 4 required keys"
+  fi
+fi
+
+# (ii) Verify the built server dist/ exists.
 if [ -d "$MCP_DIR/dist" ] && [ -f "$MCP_DIR/dist/server.js" ]; then
   echo "[Plan 1] ✓ MCP server dist/server.js present"
 else
-  PLAN1_ERRORS+=("MISSING: $MCP_DIR/dist/server.js — run 'npm run build' in mcp/mergify/")
+  PLAN1_ERRORS+=("MISSING: $MCP_DIR/dist/server.js — re-run install.sh Plan 1 section")
   PLAN1_PASS=false
 fi
 
-# (iii) Verify the redaction wrapper module can be imported (node --input-type=module).
+# (iii) Verify the redaction wrapper module can be imported and functional.
 if node --input-type=module - <<EOF 2>/dev/null
 import { redactErrorEnvelope } from '${MCP_DIR}/dist/redaction.js';
 const result = redactErrorEnvelope({ error: 'mrg_live_FAKE' });
@@ -85,8 +88,33 @@ EOF
 then
   echo "[Plan 1] ✓ Redaction wrapper importable and functional"
 else
-  PLAN1_ERRORS+=("FAIL: redaction wrapper not importable — run 'npm run build' in mcp/mergify/ first")
+  PLAN1_ERRORS+=("FAIL: redaction wrapper not importable from ${MCP_DIR}/dist/redaction.js")
   PLAN1_PASS=false
+fi
+
+# (iv) Downstream-mode only: verify run.sh wrapper and .mcp.json registration
+if [ "$DOCTOR_MODE" = "downstream" ]; then
+  MCP_RUN="$MCP_DIR/run.sh"
+  if [ ! -f "$MCP_RUN" ]; then
+    PLAN1_ERRORS+=("MISSING: $MCP_RUN — re-run install.sh Plan 1 section")
+    PLAN1_PASS=false
+  elif [ ! -x "$MCP_RUN" ]; then
+    PLAN1_ERRORS+=("NOT EXECUTABLE: $MCP_RUN — chmod +x")
+    PLAN1_PASS=false
+  else
+    echo "[Plan 1] ✓ run.sh wrapper present and executable"
+  fi
+
+  MCP_JSON="$DOWNSTREAM_ROOT/.mcp.json"
+  if [ ! -f "$MCP_JSON" ]; then
+    PLAN1_ERRORS+=("MISSING: $MCP_JSON — re-run install.sh Plan 1 section")
+    PLAN1_PASS=false
+  elif python3 -c "import json,sys; d=json.load(open('${MCP_JSON}')); sys.exit(0 if d.get('mcpServers',{}).get('mergify') else 1)" 2>/dev/null; then
+    echo "[Plan 1] ✓ .mcp.json registers 'mergify' MCP server"
+  else
+    PLAN1_ERRORS+=("FAIL: .mcp.json does not register 'mergify' — re-run install.sh Plan 1 section")
+    PLAN1_PASS=false
+  fi
 fi
 
 # Report Plan 1 results
