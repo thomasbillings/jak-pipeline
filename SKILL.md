@@ -27,6 +27,7 @@ Invoke when the user asks to:
 - "set up jak-pipeline" / "install jak-pipeline" / "bootstrap kanban pipeline".
 - "wire up the Mergify queue" / "add named queues" / "phased rollout for Mergify".
 - "add UAT before main" / "add Storybook previews per PR" on a project that already has `coordinator-pipeline` installed.
+- Run `/jak install`, `/jak doctor`, or `/jak uninstall` (slash commands at [.claude/commands/](.claude/commands/) delegating to the matching script in `scripts/`).
 
 Do NOT invoke for:
 
@@ -79,7 +80,7 @@ Open follow-ups (not Plan-numbered). Each links to its scheduled PR-slug:
 - **PR-E (label-log-append.sh `N/A` crash)** — architecture §7 specifies `blocker_count=N/A` for user-applied labels but the writer crashes on non-numeric values.
 - **PR-G (uninstall.sh)** — scaffold-only; reversal is planned.
 - **PR-H (token-prefix expansion)** — pre-commit hook + redaction wrapper miss newer GitHub formats (`gho_`, `ghu_`, `ghe_`).
-- **PR-I (slash commands)** — `/jak install`, `/jak doctor`, `/jak uninstall` referenced by the original Plan 4 brief don't exist yet.
+- ~~**PR-I (slash commands)** — `/jak install`, `/jak doctor`, `/jak uninstall` referenced by the original Plan 4 brief don't exist yet.~~ Delivered: see [.claude/commands/](.claude/commands/).
 - **Plan 4 first downstream install (post-PR-C)** — still pending. The "first install on TnT Finance" deliverable depends on PR-B+PR-C.
 - **CI workflow (PR-F)** — landing automated test runs on PR makes the rest of these safer to ship.
 - **`main` is not branch-protected.** That's how PR #4 was merged into a non-main base in the first place. Set up branch protection once the audit follow-ups are merged.
