@@ -40,6 +40,9 @@ function runInstall(tmpDir: string, extraEnv: Record<string, string> = {}): Prom
         // PLAN4_ONLY=1 in combination instructs the Plan 4 section to run too.
         PLAN3_ONLY: '1',
         PLAN4_ONLY: '1',
+        // Plan 1 still runs unconditionally; skip its npm ci step to keep the
+        // fixture deterministic (otherwise CI's network can flake).
+        JAK_PLAN1_SKIP_NPM: '1',
         // Plan 4 is interactive without these
         JAK_UAT_STRATEGY: 'local-docker',
         CF_PAGES_PROJECT: 'test-cf-project',
