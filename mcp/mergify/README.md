@@ -73,17 +73,17 @@ it exits non-zero with a message naming the offending file. Place credentials at
 
 ## Pre-commit hook
 
-`scripts/hooks/pre-commit` scans staged diffs for token prefixes (`gh[ps]_`, `github_pat_`, `mrg_live_`, `mrg_test_`). Install it:
+`scripts/hooks/pre-commit` scans staged diffs for token prefixes (`gh[ps]_`, `github_pat_`, `mrg_live_`, `mrg_test_`). Install it manually in either the skill repo or any downstream that hosts credentials:
 
 ```bash
 ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
 ```
 
-`scripts/install.sh` (Plan 4) does this automatically on downstream installs.
+> **Note:** `scripts/install.sh` does NOT install this hook automatically. The install-side wiring for the MCP server (which would include hook installation) is still a TODO — tracked as a follow-up in [`SKILL.md`](../../SKILL.md#status).
 
 ## Tests
 
 ```bash
-npm run test              # all 54 unit tests
-npm run test:coverage     # with ≥80% line coverage enforcement
+npm run test              # all 81 unit tests across 9 files
+npm run test:coverage     # with coverage report
 ```
