@@ -14,6 +14,27 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 cd "$REPO_ROOT"
 
+# claude -p permission mode for headless dispatch.
+#
+# Without an explicit --permission-mode flag, claude defaults to interactive
+# prompts on each tool call. In a `nohup ... &` detached headless context
+# there is no human to answer those prompts, so the agent hangs silently —
+# no stdout, no journal updates, no heartbeat — consuming CPU but
+# producing nothing until SIGTERM. See `dev-agent.md`'s "Permission wall"
+# guidance.
+#
+# Default to bypassPermissions, which is appropriate for the dispatch path:
+# the agent works in `worktrees/<slug>/` (not the main working tree), pushes
+# to `feat/<...>` (PR'd to main, not direct), and main is branch-protected.
+# Anything the agent does is reviewable on the PR before merge.
+#
+# Downstream consumers wanting a tighter posture can override:
+#
+#   JAK_PERMISSION_MODE=acceptEdits bash scripts/coordinator/dispatch.sh <slug>
+#
+# Valid claude values: acceptEdits | auto | bypassPermissions | default | dontAsk | plan
+JAK_PERMISSION_MODE="${JAK_PERMISSION_MODE:-bypassPermissions}"
+
 # Shared state_write helper (flocked). Defined in lib.sh so tick.sh uses the same.
 # Also exposes load_pipeline_config (reads .coordinator-pipeline.json → PLAN_REPO + PROJECT).
 . "$(dirname "$0")/lib.sh"
@@ -106,7 +127,7 @@ if [ "$MODE" = "resume" ]; then
 
   [ -d "$WORKTREE" ] || git worktree add "$WORKTREE" "$BRANCH"
 
-  nohup claude -p --resume "$SESSION_ID" \
+  nohup claude -p --resume "$SESSION_ID" --permission-mode "$JAK_PERMISSION_MODE" \
     "Resume the task. Read your journal at $JOURNAL first. If --resume restored context, continue from the logged checkpoint. If the restored context is empty or corrupted, fall back to journal replay and pick up from the last clean checkpoint." \
     > "agents/$DATE-$SLUG.stdout.log" 2>&1 &
 
@@ -178,8 +199,8 @@ EOF
     --arg branch "$BRANCH" \
     --arg started "$NOW_ISO"
 
-  # Spawn headless dev-agent (detached)
-  nohup claude -p --session-id "$SESSION_ID" \
+  # Spawn headless dev-agent (detached). See JAK_PERMISSION_MODE block above.
+  nohup claude -p --session-id "$SESSION_ID" --permission-mode "$JAK_PERMISSION_MODE" \
     "You are dev-agent. Execute the plan at $PLAN_FILE. Write your journal at $JOURNAL. Your session id is $SESSION_ID. Your worktree is $WORKTREE. Read the journal first; if it already has status: in_progress with a checkpoint, resume from there. Follow the dev-agent definition at .claude/agents/dev-agent.md precisely. When done, dispatch pr-reviewer on the feature PR." \
     > "agents/$DATE-$SLUG.stdout.log" 2>&1 &
 
