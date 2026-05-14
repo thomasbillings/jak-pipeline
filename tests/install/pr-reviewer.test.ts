@@ -190,3 +190,101 @@ describe('uninstall.sh — pr-reviewer.md removal (Plan 2)', () => {
     expect(content).toContain('user-owned reviewer');
   });
 });
+
+describe('doctor.sh Plan 2 — pr-reviewer.md detection', () => {
+  let tmpDir: string;
+  const DOCTOR_SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../scripts/doctor.sh');
+
+  beforeEach(() => {
+    tmpDir = makeTempDir();
+    // Doctor needs Plan 1 artefacts to not error out on (i)–(v); install them minimally.
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'mcp', 'mergify'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, '.claude', 'mcp', 'mergify', '.env'),
+      'MERGIFY_API_KEY=k\nMERGIFY_ORG=o\nGITHUB_TOKEN=t\nMERGIFY_MCP_ROLE=coordinator\n',
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports ✓ when pr-reviewer.md is jak-pipelines canonical template (marker present)', () => {
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'),
+      '---\nname: pr-reviewer\ndescription: Reviews feature PRs for the jak-pipeline. (and more)\n---\n',
+    );
+
+    const r = spawnSync('bash', [DOCTOR_SCRIPT], {
+      encoding: 'utf8',
+      env: { ...process.env, DOWNSTREAM_ROOT: tmpDir },
+    });
+    expect(r.stdout).toMatch(/pr-reviewer\.md is jak-pipeline's canonical template/);
+  });
+
+  it('reports CONFIGURABLE when pr-reviewer.md is user-owned (no canonical marker)', () => {
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'),
+      '---\nname: pr-reviewer\ndescription: User-customised.\n---\n',
+    );
+
+    const r = spawnSync('bash', [DOCTOR_SCRIPT], {
+      encoding: 'utf8',
+      env: { ...process.env, DOWNSTREAM_ROOT: tmpDir },
+    });
+    expect(r.stdout).toMatch(/CONFIGURABLE: pr-reviewer\.md is user-owned/);
+  });
+});
+
+describe('doctor.sh Plan 4 — CF_PAGES_PROJECT empty marker detection', () => {
+  let tmpDir: string;
+  const DOCTOR_SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../scripts/doctor.sh');
+
+  beforeEach(() => {
+    tmpDir = makeTempDir();
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'jak-pipeline'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.github', 'workflows'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'scripts', 'jak-pipeline', 'uat'), { recursive: true });
+    // Minimum Plan-4 fixture
+    fs.writeFileSync(
+      path.join(tmpDir, '.github', 'workflows', 'storybook-preview.yml'),
+      'name: storybook\nenv:\n  CF_PAGES_PROJECT: x\n',
+    );
+    for (const s of ['run.sh', 'local-docker-start.sh', 'local-docker-stop.sh', 'local-docker-accept.sh', 'local-docker-reject.sh']) {
+      const p = path.join(tmpDir, 'scripts', 'jak-pipeline', 'uat', s);
+      fs.writeFileSync(p, '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+    }
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('CONFIGURABLE when config.env contains empty CF_PAGES_PROJECT=', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.claude', 'jak-pipeline', 'config.env'),
+      'JAK_UAT_STRATEGY=none\nCF_PAGES_PROJECT=\n',
+    );
+
+    const r = spawnSync('bash', [DOCTOR_SCRIPT], {
+      encoding: 'utf8',
+      env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN4_CHECK: '1' },
+    });
+    expect(r.stdout).toMatch(/CONFIGURABLE: CF_PAGES_PROJECT is empty/);
+  });
+
+  it('✓ when config.env contains a non-empty CF_PAGES_PROJECT value', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.claude', 'jak-pipeline', 'config.env'),
+      'JAK_UAT_STRATEGY=none\nCF_PAGES_PROJECT=my-pages\n',
+    );
+
+    const r = spawnSync('bash', [DOCTOR_SCRIPT], {
+      encoding: 'utf8',
+      env: { ...process.env, DOWNSTREAM_ROOT: tmpDir, PLAN4_CHECK: '1' },
+    });
+    expect(r.stdout).toMatch(/CF_PAGES_PROJECT=my-pages configured/);
+  });
+});

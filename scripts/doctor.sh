@@ -153,6 +153,8 @@ if [ ! -f "$MERGIFY_YML" ]; then
   PLAN2_ERRORS+=("MISSING: $MERGIFY_YML — run install.sh to create it")
   PLAN2_PASS=false
 else
+  # `set -e` would trigger on a failed command substitution in an assignment,
+  # so explicitly tolerate the non-zero exit codes with a fallback.
   _yaml_check_out="$(python3 - "$MERGIFY_YML" 2>&1 <<'PYEOF'
 import sys
 try:
@@ -168,8 +170,8 @@ except Exception as e:
     print(f"PARSE_ERROR: {e}")
     sys.exit(1)
 PYEOF
-)"
-  _yaml_status=$?
+)" || _yaml_status=$?
+  _yaml_status="${_yaml_status:-0}"
   if [ "$_yaml_status" -eq 0 ]; then
     echo "[Plan 2] ✓ .mergify.yml exists and parses as valid YAML"
     if command -v mergify &>/dev/null; then
@@ -407,22 +409,25 @@ else
   echo "[Plan 4] ✓ .github/workflows/storybook-preview.yml exists and references CF_PAGES_PROJECT"
 fi
 
-# (iii.4) Verify CF_PAGES_PROJECT is configured in config.env. Three states:
-# - line absent → install.sh Plan 4 hasn't run yet (Plan 4 always writes the line)
+# (iii.4) Verify CF_PAGES_PROJECT is configured in config.env. Four states:
+# - config.env absent → (i) above already errored with MISSING and set PLAN4_PASS=false
+# - line absent → install.sh Plan 4 hasn't run completely; error and fail
 # - line present and empty (CF_PAGES_PROJECT=) → user skipped; surface as a
 #   configurable, not a defect
 # - line present and non-empty → fully configured
-if [ -f "$PLAN4_CONFIG_ENV" ]; then
-  if ! grep -qE '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" 2>/dev/null; then
-    PLAN4_ERRORS+=("MISSING CF_PAGES_PROJECT marker in $PLAN4_CONFIG_ENV — re-run scripts/install.sh Plan 4 section")
-    PLAN4_PASS=false
+if [ ! -f "$PLAN4_CONFIG_ENV" ]; then
+  # Already errored at (i); nothing to add here. Explicit no-op so refactors
+  # that delete (i) don't silently lose this branch.
+  :
+elif ! grep -qE '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" 2>/dev/null; then
+  PLAN4_ERRORS+=("MISSING CF_PAGES_PROJECT marker in $PLAN4_CONFIG_ENV — re-run scripts/install.sh Plan 4 section")
+  PLAN4_PASS=false
+else
+  _cf_value=$(grep '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" | head -1 | cut -d= -f2-)
+  if [ -z "$_cf_value" ]; then
+    echo "[Plan 4] CONFIGURABLE: CF_PAGES_PROJECT is empty in config.env — set the env var and re-run install.sh, or edit config.env directly"
   else
-    _cf_value=$(grep '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" | head -1 | cut -d= -f2-)
-    if [ -z "$_cf_value" ]; then
-      echo "[Plan 4] CONFIGURABLE: CF_PAGES_PROJECT is empty in config.env — set the env var and re-run install.sh, or edit config.env directly"
-    else
-      echo "[Plan 4] ✓ CF_PAGES_PROJECT=${_cf_value} configured"
-    fi
+    echo "[Plan 4] ✓ CF_PAGES_PROJECT=${_cf_value} configured"
   fi
 fi
 
