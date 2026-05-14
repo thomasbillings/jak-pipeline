@@ -106,6 +106,19 @@ case "$PRIORITY" in
   *) add_finding "priority_enum" "priority must be one of {low, medium, high}; got: $PRIORITY" ;;
 esac
 
+# ---- 5.5. optional `ticket:` field — validate format if present (issue #63) ----
+# Plans MAY declare a `ticket:` field that dispatch.sh consumes to construct
+# `feat/<TICKET>-<slug>` branches. If the value doesn't match the canonical
+# <PROJECT>-<N> shape, branch-ticket-check.sh's pre-push hook rejects the
+# eventual push and the dev-agent stalls with no obvious cause.
+# Validate at plan-review time so the planner fixes it before merge.
+TICKET="$(get_scalar ticket)"
+if [ -n "$TICKET" ]; then
+  if ! printf '%s' "$TICKET" | grep -qE '^[A-Z][A-Z0-9_]*-[0-9]+$'; then
+    add_finding "ticket_format_invalid" "ticket: must match <PROJECT-KEY>-<N> (uppercase project key, dash, digits); got: $TICKET"
+  fi
+fi
+
 # ---- 6. depends_on resolution ----
 # Extract slugs from either `[a, b]` inline or `- a` multi-line.
 DEPS="$(echo "$FRONTMATTER" | awk '

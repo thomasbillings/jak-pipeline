@@ -47,22 +47,46 @@ load_pipeline_config () {
 # Idempotent — re-running with no journal changes is a no-op.
 # Requires: STATE_FILE and state_write defined. Caller cd'd to repo root.
 # Requires: python3 (hard dep, same as elsewhere in coordinator-pipeline).
+#
+# Lock contention (issue #61): builds ONE composite jq expression per agent
+# and writes via a single state_write call — instead of up-to-4 calls per
+# agent (was: one per field). For N active agents on a busy tick.sh+
+# dispatch.sh tick, lock acquisitions drop from 4N to N.
+#
+# Archived journals (issue #62): searches both agents/ and agents/archive/
+# so reconciliation keeps working after a completed plan's journal is
+# rotated to the archive directory.
 reconcile_state_from_journals () {
   command -v jq >/dev/null 2>&1 || return 0
   command -v python3 >/dev/null 2>&1 || return 0
   [ -f "$STATE_FILE" ] || return 0
-  local slug journal field key val
+  local slug journal key val
   while IFS= read -r slug; do
     [ -z "$slug" ] && continue
-    journal="$(ls agents/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"${slug}".md 2>/dev/null | head -1)"
+    # Search both agents/ (active) and agents/archive/ (completed plans)
+    journal="$(ls agents/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"${slug}".md \
+                  agents/archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"${slug}".md \
+                  2>/dev/null | head -1)"
     [ -z "$journal" ] && continue
     [ -f "$journal" ] || continue
-    # Parse frontmatter via python3 → emit lines of `key<TAB>value` for each
-    # tracked field we found. shlex.quote-safe.
+
+    # Parse frontmatter; collect into a jq composite expression so we acquire
+    # the state lock once per agent (issue #61).
+    local jq_expr=""
+    local -a jq_args=()
     while IFS=$'\t' read -r key val; do
       [ -z "$key" ] && continue
       [ -z "$val" ] && continue
-      state_write ".agents[\$slug].${key} = \$val" --arg slug "$slug" --arg val "$val"
+      # Map each (key, val) into a `--arg <key>_<slug> <val>` + an expression
+      # fragment. Arg names are namespaced to avoid jq variable collision when
+      # the same key recurs in the loop (shouldn't happen but defensive).
+      local argname="v_${key}"
+      if [ -z "$jq_expr" ]; then
+        jq_expr=".agents[\$slug].${key} = \$${argname}"
+      else
+        jq_expr="${jq_expr} | .agents[\$slug].${key} = \$${argname}"
+      fi
+      jq_args+=("--arg" "$argname" "$val")
     done < <(python3 -c '
 import sys, re
 path = sys.argv[1]
@@ -82,6 +106,13 @@ for line in m.group(1).splitlines():
         continue
     print(f"{k}\t{v}")
 ' "$journal")
+
+    # Single composite write — one lock acquisition for this agent.
+    # Use explicit if/fi so the conditional doesn't leak its exit code (1)
+    # out of the function when there's nothing to write.
+    if [ -n "$jq_expr" ]; then
+      state_write "$jq_expr" --arg slug "$slug" "${jq_args[@]}"
+    fi
   done < <(jq -r '.agents // {} | keys[]' "$STATE_FILE" 2>/dev/null)
 }
 

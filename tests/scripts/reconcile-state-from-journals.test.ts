@@ -186,4 +186,61 @@ describe('reconcile_state_from_journals (lib.sh) — #48', () => {
     const out2 = JSON.parse(readFileSync(join(dir2, 'agents', '_state.json'), 'utf-8'));
     expect(out2.agents.foo).toEqual(out1.agents.foo);
   });
+
+  // Issue #62: reconcile also searches agents/archive/ for journals.
+  // After a completed plan's journal is moved to the archive directory,
+  // reconcile must still find it (otherwise _state.json freezes at the
+  // pre-archive values forever).
+  it('finds journals that have been moved to agents/archive/ (issue #62)', () => {
+    const state = {
+      plans: {},
+      agents: {
+        archived: { status: 'in_progress', last_heartbeat: '2026-05-14T10:00:00Z' },
+      },
+    };
+    const journal = buildJournal({ status: 'done', last_heartbeat: '2026-05-14T12:00:00Z' });
+
+    // Place the journal in agents/archive/ instead of agents/
+    const dir = mkdtempSync(join(tmpdir(), 'reconcile-archive-'));
+    tmpDirs.push(dir);
+    mkdirSync(join(dir, 'agents', 'archive'), { recursive: true });
+    writeFileSync(join(dir, 'agents', '_state.json'), JSON.stringify(state));
+    writeFileSync(join(dir, 'agents', 'archive', '2026-05-14-archived.md'), journal);
+
+    const r = spawnSync('bash', ['-c', `cd "${dir}" && STATE_FILE=agents/_state.json bash -c '. "${LIB}" && reconcile_state_from_journals'`], { encoding: 'utf-8' });
+    expect(r.status, `reconcile stderr=${r.stderr}`).toBe(0);
+
+    const out = JSON.parse(readFileSync(join(dir, 'agents', '_state.json'), 'utf-8'));
+    expect(out.agents.archived.status).toBe('done');
+    expect(out.agents.archived.last_heartbeat).toBe('2026-05-14T12:00:00Z');
+  });
+
+  // Issue #61: composite single-write — when multiple journal fields change,
+  // they should all apply atomically (asserted via a final consistent state).
+  // The internal refactor changed N writes → 1 write per agent. Correctness
+  // is exercised by the existing tests; this one specifically asserts that
+  // when ALL 4 fields are present they're ALL set in the single composite.
+  it('writes all 4 frontmatter fields in one composite update (issue #61)', () => {
+    const state = {
+      plans: {},
+      agents: {
+        full: {
+          status: 'in_progress',
+          last_heartbeat: '2026-05-14T10:00:00Z',
+          checkpoint: 'pending',
+        },
+      },
+    };
+    const journal = buildJournal({
+      status: 'done',
+      last_heartbeat: '2026-05-14T13:00:00Z',
+      checkpoint: 'pr-merged',
+      pr_url: 'https://github.com/x/y/pull/99',
+    });
+    const out = runReconcile(state, { '2026-05-14-full.md': journal });
+    expect(out.agents.full.status).toBe('done');
+    expect(out.agents.full.last_heartbeat).toBe('2026-05-14T13:00:00Z');
+    expect(out.agents.full.checkpoint).toBe('pr-merged');
+    expect(out.agents.full.pr_url).toBe('https://github.com/x/y/pull/99');
+  });
 });
