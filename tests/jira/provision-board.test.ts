@@ -88,6 +88,32 @@ describe('provision-board.sh — idempotent provisioning (a7)', () => {
     expect(writes.length).toBe(0);
   });
 
+  it('exits non-zero and reports failures when API returns 404 for every column create (Cloud reality)', async () => {
+    // Replicates Jira Cloud's actual behavior: POST /board/{id}/configuration/column
+    // is not exposed on Cloud, so every create call comes back 404. This test
+    // verifies the script reports those failures loudly instead of declaring
+    // false success — see fix/provision-board-honest-failures.
+    stub.setRoute('GET', '/rest/agile/1.0/board/42/configuration', (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ columnConfig: { columns: [] } }));
+    });
+
+    stub.setRoute('POST', '/rest/agile/1.0/board/42/configuration/column', (_req, res) => {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ errorMessages: ['Not Found'] }));
+    });
+
+    const result = await runScript(SCRIPT, ['--project', 'SCRUM', '--board', '42'], {
+      JIRA_BASE_URL: `http://127.0.0.1:${stub.port}`,
+      JIRA_ENV_FILE: envFile
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toMatch(/created=0 failed=12 skipped=0/);
+    expect(result.stderr).toMatch(/12 column\(s\) failed to create/);
+    expect(result.stderr).toMatch(/Cloud no longer accepts POSTs/);
+  });
+
   it('leaves extra columns untouched (never deletes) when 14 columns exist', async () => {
     const existingColumns = [
       ...CANONICAL_STATES,
