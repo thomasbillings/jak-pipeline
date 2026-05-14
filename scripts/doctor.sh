@@ -340,7 +340,7 @@ PYEOF
 fi
 
 # (iii) Verify tick.sh contains jak_pipeline_jira_tick_pass
-TICK_SH="${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh"
+TICK_SH="${DOWNSTREAM_ROOT}/scripts/scrum-master/tick.sh"
 if [ ! -f "$TICK_SH" ]; then
   PLAN3_ERRORS+=("MISSING: $TICK_SH — run install.sh Plan 3 section")
   PLAN3_PASS=false

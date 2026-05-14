@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# coordinator-tick — scan plans + agents + GitHub state, reconcile, report deltas.
+# scrum-master — scan plans + agents + GitHub state, reconcile, report deltas.
 #
 # Read-only on running sub-agent sessions (observation, never poke).
 # Updates agents/_state.json and appends to agents/_tick-log.md.
@@ -13,7 +13,7 @@ REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 cd "$REPO_ROOT"
 
 # Shared state_write (flocked); sets STATE_FILE default. Also exposes
-# load_pipeline_config (reads .coordinator-pipeline.json → PLAN_REPO + PROJECT).
+# load_pipeline_config (reads .scrum-master.json → PLAN_REPO + PROJECT).
 . "$(dirname "$0")/lib.sh"
 
 TICK_LOG="agents/_tick-log.md"
@@ -37,7 +37,7 @@ load_pipeline_config
 reconcile_state_from_journals
 
 # Refresh the remote ref for main; do NOT touch the working tree — the
-# coordinator may be running from a feature branch or worktree.
+# scrum-master may be running from a feature branch or worktree.
 git fetch origin main --quiet || {
   echo '{"error":"git fetch failed — check network/auth"}' >&2
   exit 1
@@ -68,7 +68,7 @@ if [ -n "$PLAN_REPO" ]; then
     # idempotent so we overwrite on every tick — cheap, and avoids drift.
     if ! gh api "repos/$PLAN_REPO/contents/plans/$plan_name" \
          --jq '.content' 2>/dev/null | base64 -d > "$PLAN_CACHE_DIR/$plan_name"; then
-      echo "coordinator-pipeline: failed to fetch $PLAN_REPO:plans/$plan_name — skipping" >&2
+      echo "scrum-master-pipeline: failed to fetch $PLAN_REPO:plans/$plan_name — skipping" >&2
       rm -f "$PLAN_CACHE_DIR/$plan_name"
       continue
     fi

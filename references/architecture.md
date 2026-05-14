@@ -6,7 +6,7 @@ Where the discovery panel did not converge on a specific value, the section says
 
 ## 1. Overview
 
-A small-team-grade delivery pipeline for a single developer plus Claude agents. The unit of work is a Jira ticket; its state machine is the 12-state kanban. GitHub PR state is canonical; Mergify and Jira are projections. Mergify enforces a named-queue merge policy; the Mergify MCP server lets agents inspect (and the coordinator alone mutate) the queue. Jira is reconciled idempotently — a Jira outage never blocks the GitHub pipeline. UAT is a pluggable gate between merge-to-main and Done; Storybook gets a preview per PR.
+A small-team-grade delivery pipeline for a single developer plus Claude agents. The unit of work is a Jira ticket; its state machine is the 12-state kanban. GitHub PR state is canonical; Mergify and Jira are projections. Mergify enforces a named-queue merge policy; the Mergify MCP server lets agents inspect (and the scrum-master alone mutate) the queue. Jira is reconciled idempotently — a Jira outage never blocks the GitHub pipeline. UAT is a pluggable gate between merge-to-main and Done; Storybook gets a preview per PR.
 
 The pipeline is delivered by 5 plans. Plan 0 (this scaffold) lays out the directory tree and decided architecture. Plans 1-4 build the Mergify MCP server, Mergify config + agent label transitions, Jira integration, and the first install on TnT Finance respectively.
 
@@ -26,7 +26,7 @@ Full state machine, transitions, and Mermaid diagram live in [`kanban-states.md`
 
 - Mergify is the policy engine on top of GitHub: it cannot move state in any direction GitHub doesn't already permit (it can dequeue, merge, or hold; it cannot un-merge).
 - Jira is the human-readable projection: it carries no decision authority. Every Jira transition is computed from GitHub state.
-- The coordinator's `tick.sh` runs a reconciliation pass on every tick:
+- The scrum-master's `tick.sh` runs a reconciliation pass on every tick:
   - Read GitHub PR state for every open + recently-merged PR.
   - Compute the expected Jira state for each.
   - Diff against actual Jira state.
@@ -78,7 +78,7 @@ The `design` queue's "no UAT, no plan" exemption is for low-blast-radius visual-
 
 A TypeScript stdio MCP server lives in `mcp/mergify/` (Plan 1). Six tools, role-gated by the `MERGIFY_MCP_ROLE` env var injected at agent dispatch.
 
-| Tool                            | Cache TTL    | coordinator | pr-reviewer | dev-agent | planner |
+| Tool                            | Cache TTL    | scrum-master | pr-reviewer | dev-agent | planner |
 | ------------------------------- | ------------ | ----------- | ----------- | --------- | ------- |
 | `mergify_get_queue_summary`     | 30s          | ✅          | ✅          | ✅        | ✅      |
 | `mergify_get_queue_details(pr)` | none         | ✅          | ✅          | ✅        | —       |
@@ -89,7 +89,7 @@ A TypeScript stdio MCP server lives in `mcp/mergify/` (Plan 1). Six tools, role-
 
 **Role-gating rule:**
 
-- coordinator gets all 6 tools (only role with mutating capability).
+- scrum-master gets all 6 tools (only role with mutating capability).
 - pr-reviewer is read-only: summary + details + eligibility + freezes.
 - dev-agent gets summary + details + eligibility (enough to debug a stuck PR; cannot replay).
 - planner gets summary only (situational awareness).
@@ -122,7 +122,7 @@ The pipeline's safety hinges on who can apply `queue:*` labels.
 - `reasoning` — short text from the agent's gate decision.
 - `applied_at` — ISO 8601.
 
-Writer is whichever actor applied the label. For `queue:plan` (user-applied), the coordinator's next tick observes the new label and writes a `applied_by: user` row retrospectively (not contractual — surfaces user actions in the audit trail without requiring user-side automation).
+Writer is whichever actor applied the label. For `queue:plan` (user-applied), the scrum-master's next tick observes the new label and writes a `applied_by: user` row retrospectively (not contractual — surfaces user actions in the audit trail without requiring user-side automation).
 
 ## 8. Jira idempotency contract
 
@@ -132,10 +132,10 @@ Every Jira transition the pipeline writes is:
 2. **Never backwards** — refuse a transition that moves the ticket backwards on the kanban (backward edges in the state machine are GitHub-driven; Jira receives the result, never initiates it).
 3. **Verify-after-write** — re-fetch and assert the new state matches.
 4. **Retry 3× exponential backoff** on transient Jira failures. Backoff seed/cap: **2-second seed, 30-second cap, 3 attempts** (set in `scripts/jira/transition.sh`; overridable via `JIRA_BACKOFF_SEED_MS` / `JIRA_BACKOFF_CAP_MS` for tests).
-5. **Fall through to `agents/_jira-retry.json`** on persistent failure. The retry queue is JSONL-shaped (one pending transition per line); the coordinator's `tick.sh` drains it on each tick.
+5. **Fall through to `agents/_jira-retry.json`** on persistent failure. The retry queue is JSONL-shaped (one pending transition per line); the scrum-master's `tick.sh` drains it on each tick.
 6. **NEVER block the GitHub pipeline on Jira failure.** Mergify merges, dev-agents push, and pr-reviewers approve regardless of Jira's state. Jira drift is a reportable condition (post a PR comment on >10min drift, per §3) but not a pipeline-stopper.
 
-Shared helper: `scripts/jira/transition.sh` (Plan 3). Every agent + the coordinator call this helper rather than hitting the Jira API directly.
+Shared helper: `scripts/jira/transition.sh` (Plan 3). Every agent + the scrum-master call this helper rather than hitting the Jira API directly.
 
 ## 9. UAT pluggable strategies (4)
 

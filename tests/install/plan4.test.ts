@@ -21,9 +21,9 @@ function makeTempDir(): string {
 }
 
 function setupMinimalDownstream(tmpDir: string): void {
-  fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
+  fs.mkdirSync(path.join(tmpDir, 'scripts', 'scrum-master'), { recursive: true });
   fs.writeFileSync(
-    path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
+    path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh'),
     '#!/usr/bin/env bash\nset -euo pipefail\necho "tick"\n',
     { mode: 0o755 }
   );
@@ -43,7 +43,7 @@ function runInstall(tmpDir: string, extraEnv: Record<string, string> = {}): Prom
         // Plan 1 still runs unconditionally; skip its npm ci step to keep the
         // fixture deterministic (otherwise CI's network can flake).
         JAK_PLAN1_SKIP_NPM: '1',
-        // Pre-flight requires .git/ + coordinator-pipeline + CLIs; not what
+        // Pre-flight requires .git/ + scrum-master-pipeline + CLIs; not what
         // this test is exercising.
         JAK_SKIP_PREFLIGHT: '1',
         // Plan 4 is interactive without these

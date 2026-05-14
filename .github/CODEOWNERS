@@ -20,11 +20,11 @@
 /scripts/label-log-append.sh      @thomasbillings
 /scripts/branch-ticket-check.sh   @thomasbillings
 
-# Install / uninstall / coordinator scripts — wide-blast-radius infrastructure
+# Install / uninstall / scrum-master scripts — wide-blast-radius infrastructure
 /scripts/install.sh               @thomasbillings
 /scripts/uninstall.sh             @thomasbillings
 /scripts/doctor.sh                @thomasbillings
-/scripts/coordinator/             @thomasbillings
+/scripts/scrum-master/             @thomasbillings
 /scripts/jira/                    @thomasbillings
 /scripts/uat/                     @thomasbillings
 

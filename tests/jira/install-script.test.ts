@@ -12,11 +12,11 @@ const INSTALL_SCRIPT = scriptPath('../install.sh');
 
 // Helper to set up a minimal downstream project skeleton
 function makeDownstreamSkeleton(tmpDir: string): void {
-  fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
+  fs.mkdirSync(path.join(tmpDir, 'scripts', 'scrum-master'), { recursive: true });
   fs.mkdirSync(path.join(tmpDir, '.claude', 'jira'), { recursive: true });
 
   // Minimal tick.sh
-  const tickSh = path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh');
+  const tickSh = path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh');
   fs.writeFileSync(tickSh, `#!/usr/bin/env bash\nset -euo pipefail\necho "tick"\n`);
   fs.chmodSync(tickSh, 0o755);
 }
@@ -96,13 +96,13 @@ describe('install.sh — Plan 3 section (a16)', () => {
     });
 
     const tickContent = fs.readFileSync(
-      path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
+      path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh'),
       'utf8'
     );
     const sourceMatches = (tickContent.match(/jak_pipeline_jira_tick_pass/g) || []).length;
     expect(sourceMatches).toBe(1);
     // Verify the source path resolves to the correct relative location:
-    // tick.sh is at scripts/coordinator/tick.sh, tick-extension.sh at
+    // tick.sh is at scripts/scrum-master/tick.sh, tick-extension.sh at
     // scripts/jak-pipeline/jira/tick-extension.sh — requires one "../" step up.
     expect(tickContent).toContain('/../jak-pipeline/jira/tick-extension.sh');
   });
@@ -122,7 +122,7 @@ describe('install.sh — Plan 3 section (a16)', () => {
     await runInstall();
 
     const tickContent = fs.readFileSync(
-      path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
+      path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh'),
       'utf8'
     );
     const sourceMatches = (tickContent.match(/jak_pipeline_jira_tick_pass/g) || []).length;

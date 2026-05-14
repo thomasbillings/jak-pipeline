@@ -1,6 +1,6 @@
 /**
- * install.sh Plan 0 section — coordinator-pipeline scaffolding (absorbed
- * from the formerly separate coordinator-pipeline skill).
+ * install.sh Plan 0 section — scrum-master-pipeline scaffolding (absorbed
+ * from the formerly separate scrum-master-pipeline skill).
  *
  * Uses PLAN0_ONLY=1 + JAK_SKIP_PREFLIGHT=1 to test only the Plan 0 surface.
  */
@@ -38,7 +38,7 @@ function runInstall(tmpDir: string, extraEnv: Record<string, string> = {}): Prom
   });
 }
 
-describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
+describe('install.sh — Plan 0 (scrum-master-pipeline scaffolding)', () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -55,13 +55,13 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     expect(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'planner.md'))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'plan-reviewer.md'))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'dev-agent.md'))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, '.claude', 'commands', 'coordinator-tick.md'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, '.claude', 'commands', 'scrum-master.md'))).toBe(true);
   });
 
-  it('installs the four coordinator scripts to scripts/coordinator/ as executables', async () => {
+  it('installs the four scrum-master scripts to scripts/scrum-master/ as executables', async () => {
     await runInstall(tmpDir);
     for (const s of ['tick.sh', 'dispatch.sh', 'lib.sh', 'check-plan.sh']) {
-      const p = path.join(tmpDir, 'scripts', 'coordinator', s);
+      const p = path.join(tmpDir, 'scripts', 'scrum-master', s);
       expect(fs.existsSync(p), `${s} should exist`).toBe(true);
       expect(fs.statSync(p).mode & 0o111, `${s} should be executable`).not.toBe(0);
     }
@@ -74,14 +74,14 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     expect(fs.statSync(path.join(tmpDir, 'agents', 'archive')).isDirectory()).toBe(true);
   });
 
-  it('appends the coordinator + jak-pipeline gitignore template to .gitignore', async () => {
+  it('appends the scrum-master + jak-pipeline gitignore template to .gitignore', async () => {
     fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n');
 
     await runInstall(tmpDir);
 
     const gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
     expect(gi).toContain('node_modules/');                  // user content preserved
-    expect(gi).toMatch(/coordinator pipeline.*agent state/i);
+    expect(gi).toMatch(/scrum-master pipeline.*agent state/i);
     expect(gi).toContain('/agents/_state.json');
     expect(gi).toContain('/worktrees/');
     expect(gi).toContain('/.plan-cache/');
@@ -93,21 +93,21 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     await runInstall(tmpDir);
     await runInstall(tmpDir);
     const gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
-    const occurrences = (gi.match(/coordinator pipeline — agent state/g) || []).length;
+    const occurrences = (gi.match(/scrum-master pipeline — agent state/g) || []).length;
     expect(occurrences).toBe(1);
   });
 
-  it('JAK_PLAN_REPO + JAK_PROJECT_NAME write .coordinator-pipeline.json non-interactively', async () => {
+  it('JAK_PLAN_REPO + JAK_PROJECT_NAME write .scrum-master.json non-interactively', async () => {
     await runInstall(tmpDir, { JAK_PLAN_REPO: 'foo/bar-plans', JAK_PROJECT_NAME: 'bar' });
-    const cfg = path.join(tmpDir, '.coordinator-pipeline.json');
+    const cfg = path.join(tmpDir, '.scrum-master.json');
     expect(fs.existsSync(cfg)).toBe(true);
     const data = JSON.parse(fs.readFileSync(cfg, 'utf8'));
     expect(data.plan_repo).toBe('foo/bar-plans');
     expect(data.project).toBe('bar');
   });
 
-  it('does not overwrite a pre-existing .coordinator-pipeline.json', async () => {
-    const cfg = path.join(tmpDir, '.coordinator-pipeline.json');
+  it('does not overwrite a pre-existing .scrum-master.json', async () => {
+    const cfg = path.join(tmpDir, '.scrum-master.json');
     fs.writeFileSync(cfg, JSON.stringify({ plan_repo: 'mine/plans', project: 'mine' }));
     await runInstall(tmpDir, { JAK_PLAN_REPO: 'should-not-clobber/x' });
     const data = JSON.parse(fs.readFileSync(cfg, 'utf8'));
@@ -140,7 +140,7 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     const gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
     // node_modules/ must be on its own line, NOT concatenated with the next
     expect(gi).toMatch(/^node_modules\/\n/);
-    expect(gi).toMatch(/coordinator pipeline/);
+    expect(gi).toMatch(/scrum-master pipeline/);
   });
 
   it('creates .gitignore from scratch when none exists at install time', async () => {
@@ -155,9 +155,9 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     expect(gi).toContain('/agents/_label-log.jsonl');
   });
 
-  it('does not overwrite pre-existing coordinator scripts (bootstrap.sh idempotence contract)', async () => {
-    fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
-    const tickSh = path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh');
+  it('does not overwrite pre-existing scrum-master scripts (bootstrap.sh idempotence contract)', async () => {
+    fs.mkdirSync(path.join(tmpDir, 'scripts', 'scrum-master'), { recursive: true });
+    const tickSh = path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh');
     fs.writeFileSync(tickSh, '#!/usr/bin/env bash\n# my customised tick\n', { mode: 0o755 });
 
     await runInstall(tmpDir);

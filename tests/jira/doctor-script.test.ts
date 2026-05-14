@@ -19,11 +19,11 @@ async function runDoctor(tmpDir: string, stub: StubServer | null, opts: {
   retryQueueContent?: string;
 } = {}): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const downstream = path.join(tmpDir, 'downstream');
-  fs.mkdirSync(path.join(downstream, 'scripts', 'coordinator'), { recursive: true });
+  fs.mkdirSync(path.join(downstream, 'scripts', 'scrum-master'), { recursive: true });
   fs.mkdirSync(path.join(downstream, '.claude', 'jira'), { recursive: true });
   fs.mkdirSync(path.join(downstream, 'agents'), { recursive: true });
 
-  const tickSh = path.join(downstream, 'scripts', 'coordinator', 'tick.sh');
+  const tickSh = path.join(downstream, 'scripts', 'scrum-master', 'tick.sh');
   const tickContent = opts.tickShContent ?? `#!/usr/bin/env bash\n. scripts/jak-pipeline/jira/tick-extension.sh\njak_pipeline_jira_tick_pass\n`;
   fs.writeFileSync(tickSh, tickContent);
 

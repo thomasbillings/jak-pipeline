@@ -27,7 +27,7 @@ function makeTmpRepo(opts: { coordPipelineJson?: object; jiraEnv?: string }): st
   const dir = mkdtempSync(join(tmpdir(), 'btc-test-'));
   spawnSync('git', ['init', '-q'], { cwd: dir });
   if (opts.coordPipelineJson) {
-    writeFileSync(join(dir, '.coordinator-pipeline.json'), JSON.stringify(opts.coordPipelineJson));
+    writeFileSync(join(dir, '.scrum-master.json'), JSON.stringify(opts.coordPipelineJson));
   }
   if (opts.jiraEnv !== undefined) {
     mkdirSync(join(dir, '.claude', 'jira'), { recursive: true });
@@ -112,7 +112,7 @@ describe('scripts/branch-ticket-check.sh (a9) — reject cases', () => {
 // Project-configurable regex (#43): the hardcoded SCRUM-/GH- pair broke
 // every first-install on a non-SCRUM project. Project key is now resolved
 // via (in priority order) JIRA_TICKET_PROJECT_KEY → JIRA_PROJECT →
-// .claude/jira/.env's JIRA_PROJECT → .coordinator-pipeline.json's project
+// .claude/jira/.env's JIRA_PROJECT → .scrum-master.json's project
 // field → SCRUM (legacy default).
 describe('scripts/branch-ticket-check.sh — project-configurable regex (#43)', () => {
   const tmpDirs: string[] = [];
@@ -157,8 +157,8 @@ describe('scripts/branch-ticket-check.sh — project-configurable regex (#43)', 
     expect(run('feat/SCRUM-1-up',   { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(1);
   });
 
-  it('auto-discovers jira_project from <repo>/.coordinator-pipeline.json (not .project, which is consumer name)', () => {
-    // The `project` field in .coordinator-pipeline.json is the downstream
+  it('auto-discovers jira_project from <repo>/.scrum-master.json (not .project, which is consumer name)', () => {
+    // The `project` field in .scrum-master.json is the downstream
     // consumer name (e.g. "survaigo-ai"), not a Jira project key. Only the
     // explicit `jira_project` field is a valid project key. With only
     // `project` set, the resolver should fall through to SCRUM, not use it.
@@ -168,14 +168,14 @@ describe('scripts/branch-ticket-check.sh — project-configurable regex (#43)', 
     expect(run('feat/survaigo-ai-1-z', { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(1);
 
     // With `jira_project` set explicitly to a clean project key, it should be honored.
-    rmSync(join(dir, '.coordinator-pipeline.json'));
-    writeFileSync(join(dir, '.coordinator-pipeline.json'),
+    rmSync(join(dir, '.scrum-master.json'));
+    writeFileSync(join(dir, '.scrum-master.json'),
       JSON.stringify({ plan_repo: 'org/plans', project: 'survaigo-ai', jira_project: 'S20' }));
     expect(run('feat/S20-1-z',   { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(0);
     expect(run('feat/SCRUM-1-z', { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(1);
   });
 
-  it('.claude/jira/.env takes precedence over .coordinator-pipeline.json', () => {
+  it('.claude/jira/.env takes precedence over .scrum-master.json', () => {
     const dir = makeTmpRepo({
       jiraEnv: 'JIRA_PROJECT=ENV_WINS\n',
       coordPipelineJson: { plan_repo: 'org/plans', project: 'consumer', jira_project: 'JSON_LOSES' },
@@ -185,7 +185,7 @@ describe('scripts/branch-ticket-check.sh — project-configurable regex (#43)', 
     expect(run('feat/JSON_LOSES-1-a', { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(1);
   });
 
-  it('falls back to SCRUM when no env, no .env, no .coordinator-pipeline.json', () => {
+  it('falls back to SCRUM when no env, no .env, no .scrum-master.json', () => {
     const dir = makeTmpRepo({});
     tmpDirs.push(dir);
     expect(run('feat/SCRUM-1-y', { JIRA_TICKET_PROJECT_KEY: '', JIRA_PROJECT: '' }, dir).status).toBe(0);

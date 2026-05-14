@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# scrum-master — terminal entry point for the scrum-master-pipeline.
+#
+# Runs one tick of state reconciliation, then auto-dispatches every plan
+# that is approved + unclaimed (status absent from agents/_state.json AND
+# no existing journal). Designed for cron / shell aliases / "I want hands-
+# off plan-driven dev."
+#
+# Usage:
+#   scrum-master                # full pass: tick + auto-dispatch
+#   scrum-master --dry-run      # tick only; print what WOULD be dispatched
+#   scrum-master --no-color     # disable ANSI colors (or set NO_COLOR=1)
+#   scrum-master --help
+#
+# Conventions:
+# - Honors NO_COLOR (https://no-color.org) and non-TTY stdout.
+# - Exits 0 if the tick + every dispatch succeeded; 1 on any dispatch
+#   failure; 2 on unrecoverable tick error (e.g. not a git repo).
+# - The visual prefix `[scrum-master]` is bold cyan so it stands out
+#   from interleaved git / npm output in a busy terminal.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Color setup — TTY-aware + NO_COLOR-aware.
+# ---------------------------------------------------------------------------
+USE_COLOR=1
+for arg in "$@"; do
+  case "$arg" in
+    --no-color) USE_COLOR=0 ;;
+  esac
+done
+[ -n "${NO_COLOR:-}" ] && USE_COLOR=0
+[ -t 1 ] || USE_COLOR=0
+
+if [ "$USE_COLOR" -eq 1 ]; then
+  C_RESET=$'\033[0m'
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_CYAN=$'\033[36m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_RED=$'\033[31m'
+  C_MAGENTA=$'\033[35m'
+else
+  C_RESET=""
+  C_BOLD=""
+  C_DIM=""
+  C_CYAN=""
+  C_GREEN=""
+  C_YELLOW=""
+  C_RED=""
+  C_MAGENTA=""
+fi
+
+TAG="${C_BOLD}${C_CYAN}[scrum-master]${C_RESET}"
+
+log_info()    { printf "%s %s\n" "$TAG" "$*"; }
+log_action()  { printf "%s %s%s%s\n" "$TAG" "$C_MAGENTA" "$*" "$C_RESET"; }
+log_ok()      { printf "%s %s✓%s %s\n" "$TAG" "$C_GREEN" "$C_RESET" "$*"; }
+log_warn()    { printf "%s %s⚠%s %s\n" "$TAG" "$C_YELLOW" "$C_RESET" "$*" >&2; }
+log_err()     { printf "%s %s✗%s %s\n" "$TAG" "$C_RED" "$C_RESET" "$*" >&2; }
+log_dim()     { printf "%s %s%s%s\n" "$TAG" "$C_DIM" "$*" "$C_RESET"; }
+
+# ---------------------------------------------------------------------------
+# Arg parsing
+# ---------------------------------------------------------------------------
+DRY_RUN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --no-color) shift ;;
+    --help|-h)
+      cat <<EOF
+${TAG} run a scrum-master pass: tick the pipeline, auto-dispatch eligible plans.
+
+Usage:
+  scrum-master                # full pass: tick + auto-dispatch every eligible plan
+  scrum-master --dry-run      # tick only; print what WOULD be dispatched
+  scrum-master --no-color     # disable ANSI colors (NO_COLOR=1 also works)
+  scrum-master --help
+
+Exits 0 on success, 1 if any dispatch failed, 2 on unrecoverable tick error.
+EOF
+      exit 0
+      ;;
+    *) log_err "unknown argument: $1"; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
+# Resolve repo root + tick.sh location
+# ---------------------------------------------------------------------------
+if ! REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  log_err "not inside a git repository — cd into your project root and try again"
+  exit 2
+fi
+cd "$REPO_ROOT"
+
+TICK="$REPO_ROOT/scripts/scrum-master/tick.sh"
+DISPATCH="$REPO_ROOT/scripts/scrum-master/dispatch.sh"
+
+if [ ! -x "$TICK" ]; then
+  log_err "tick.sh not found at $TICK — is jak-pipeline installed in this project?"
+  exit 2
+fi
+if [ ! -x "$DISPATCH" ]; then
+  log_err "dispatch.sh not found at $DISPATCH — is jak-pipeline installed in this project?"
+  exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# Tick — runs the read-only state reconciliation pass and emits JSON.
+# ---------------------------------------------------------------------------
+log_info "Tick — reconciling state"
+TICK_OUTPUT="$(bash "$TICK" 2>&1)"
+if ! echo "$TICK_OUTPUT" | jq -e . >/dev/null 2>&1; then
+  log_err "tick.sh did not produce valid JSON output:"
+  printf "%s\n" "$TICK_OUTPUT" >&2
+  exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# Identify eligible plans (in plan-repo: status approved, has_agent false;
+# in legacy mode: present in plans/ but absent from _state.json).
+# ---------------------------------------------------------------------------
+ELIGIBLE_SLUGS=$(echo "$TICK_OUTPUT" \
+  | jq -r '.eligible_plans[]?
+           | select(.has_agent == false and .in_state == false)
+           | .slug')
+
+if [ -z "$ELIGIBLE_SLUGS" ]; then
+  log_ok "Nothing to do — no eligible plans waiting."
+  exit 0
+fi
+
+PLAN_COUNT=$(echo "$ELIGIBLE_SLUGS" | wc -l)
+log_action "Found $PLAN_COUNT eligible plan(s):"
+echo "$ELIGIBLE_SLUGS" | while read -r slug; do
+  [ -z "$slug" ] && continue
+  log_dim "  • $slug"
+done
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_warn "--dry-run set — not dispatching."
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Dispatch each eligible plan. Continue on individual failures; final exit
+# code reflects whether any dispatch failed.
+# ---------------------------------------------------------------------------
+FAILED=0
+SUCCEEDED=0
+while IFS= read -r slug; do
+  [ -z "$slug" ] && continue
+  log_action "Dispatching $slug"
+  if bash "$DISPATCH" "$slug"; then
+    log_ok "Dispatched $slug"
+    SUCCEEDED=$((SUCCEEDED + 1))
+  else
+    log_err "Dispatch failed for $slug (exit code $?)"
+    FAILED=$((FAILED + 1))
+  fi
+done <<< "$ELIGIBLE_SLUGS"
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+echo ""
+if [ "$FAILED" -eq 0 ]; then
+  log_ok "Done. Dispatched $SUCCEEDED plan(s); 0 failures."
+  exit 0
+else
+  log_err "Done with errors. Dispatched $SUCCEEDED; $FAILED failed."
+  exit 1
+fi

@@ -1,30 +1,40 @@
 #!/usr/bin/env bash
-# coordinator-pipeline — shared helpers for tick.sh and dispatch.sh.
+# scrum-master-pipeline — shared helpers for tick.sh and dispatch.sh.
 #
 # Source this file early: `. "$(dirname "$0")/lib.sh"`.
 
 : "${STATE_FILE:=agents/_state.json}"
 : "${STATE_LOCK:=agents/_state.json.lock}"
-: "${PIPELINE_CONFIG:=.coordinator-pipeline.json}"
+: "${PIPELINE_CONFIG:=.scrum-master.json}"
+: "${LEGACY_PIPELINE_CONFIG:=.coordinator-pipeline.json}"
 : "${PLAN_CACHE_DIR:=.plan-cache}"
 
 # load_pipeline_config
 #
-# Reads .coordinator-pipeline.json from the repo root (if present) and
-# exports PLAN_REPO + PROJECT into the calling shell. When the file is
-# absent, both vars are exported empty — callers treat empty as
-# "legacy mode" and fall back to local plans/.
+# Reads .scrum-master.json from the repo root (if present) and exports
+# PLAN_REPO + PROJECT into the calling shell. Falls back to the legacy
+# .coordinator-pipeline.json for one release cycle — installs that still
+# carry the old filename keep working, with a one-time deprecation notice.
+# When neither file is present, both vars are exported empty — callers
+# treat empty as "legacy mode" and fall back to local plans/.
 #
 # Schema (v1, no schema_version key yet):
 #   { "plan_repo": "<owner>/<repo>", "project": "<downstream-project-name>" }
 load_pipeline_config () {
   PLAN_REPO=""
   PROJECT=""
+  local config_file=""
   if [ -f "$PIPELINE_CONFIG" ]; then
-    PLAN_REPO="$(jq -r '.plan_repo // empty' "$PIPELINE_CONFIG" 2>/dev/null || echo "")"
-    PROJECT="$(jq -r '.project // empty' "$PIPELINE_CONFIG" 2>/dev/null || echo "")"
+    config_file="$PIPELINE_CONFIG"
+  elif [ -f "$LEGACY_PIPELINE_CONFIG" ]; then
+    config_file="$LEGACY_PIPELINE_CONFIG"
+    echo "scrum-master: reading legacy $LEGACY_PIPELINE_CONFIG — rename to $PIPELINE_CONFIG (\`git mv $LEGACY_PIPELINE_CONFIG $PIPELINE_CONFIG\`) before the next release; support for the legacy filename will be removed." >&2
+  fi
+  if [ -n "$config_file" ]; then
+    PLAN_REPO="$(jq -r '.plan_repo // empty' "$config_file" 2>/dev/null || echo "")"
+    PROJECT="$(jq -r '.project // empty' "$config_file" 2>/dev/null || echo "")"
     if [ -z "$PLAN_REPO" ] || [ -z "$PROJECT" ]; then
-      echo "coordinator-pipeline: $PIPELINE_CONFIG present but missing required keys (plan_repo, project) — falling back to legacy local plans/" >&2
+      echo "scrum-master-pipeline: $config_file present but missing required keys (plan_repo, project) — falling back to legacy local plans/" >&2
       PLAN_REPO=""
       PROJECT=""
     fi
@@ -46,7 +56,7 @@ load_pipeline_config () {
 #
 # Idempotent — re-running with no journal changes is a no-op.
 # Requires: STATE_FILE and state_write defined. Caller cd'd to repo root.
-# Requires: python3 (hard dep, same as elsewhere in coordinator-pipeline).
+# Requires: python3 (hard dep, same as elsewhere in scrum-master-pipeline).
 #
 # Lock contention (issue #61): builds ONE composite jq expression per agent
 # and writes via a single state_write call — instead of up-to-4 calls per

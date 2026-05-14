@@ -1,5 +1,5 @@
 /**
- * install.sh pre-flight section — local CLI / coordinator-pipeline / git checks.
+ * install.sh pre-flight section — local CLI / scrum-master-pipeline / git checks.
  *
  * Pre-flight is opt-out via JAK_SKIP_PREFLIGHT=1; opt-in to remote checks via
  * JAK_REMOTE_CHECKS=1 (not tested here — would make network calls).
@@ -57,7 +57,7 @@ describe('install.sh — pre-flight section', () => {
     expect(result.stderr).toMatch(/not a git repository/);
   });
 
-  // Coordinator-pipeline is no longer a prerequisite — Plan 0 installs it.
+  // Scrum Master-pipeline is no longer a prerequisite — Plan 0 installs it.
   // Pre-flight no longer checks for tick.sh or pr-reviewer.md.
 
   it('passes pre-flight when downstream is a git repo (only hard requirement now)', async () => {

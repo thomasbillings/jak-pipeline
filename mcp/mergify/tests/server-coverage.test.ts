@@ -34,7 +34,7 @@ describe('server error paths + cache.clear()', () => {
       const server = await createTestServer();
 
       // Invoke a valid tool — the stub never throws so we get allow
-      const result = await server.invokeWithRole('coordinator', 'mergify_get_queue_summary', {});
+      const result = await server.invokeWithRole('scrum-master', 'mergify_get_queue_summary', {});
       expect(result.type).toBe('allow');
     });
 
@@ -42,7 +42,7 @@ describe('server error paths + cache.clear()', () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
 
-      const result = await server.invokeWithRole('coordinator', 'nonexistent' as never, {});
+      const result = await server.invokeWithRole('scrum-master', 'nonexistent' as never, {});
       // nonexistent tool: gate passes (role is valid) but tool not found → role-refused
       expect(['allow', 'role-refused']).toContain(result.type);
     });

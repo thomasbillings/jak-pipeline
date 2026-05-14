@@ -15,7 +15,7 @@ MCP server tests live in `mcp/mergify/tests/` and run from inside that package; 
 | File | Covers |
 | --- | --- |
 | `redaction.test.ts` | No Mergify/GitHub token prefix ever appears in any MCP tool's error envelope. |
-| `role-gating.test.ts` | Only the `coordinator` role can invoke mutating tools (`mergify_set_queue_state`, `mergify_replay_pr`). |
+| `role-gating.test.ts` | Only the `scrum-master` role can invoke mutating tools (`mergify_set_queue_state`, `mergify_replay_pr`). |
 | `cache.test.ts` | `mergify_get_queue_summary` 30s TTL, `mergify_list_queue_freezes` 60s TTL. |
 | `mergify-client.test.ts` | Fetch-based HTTP client error paths. |
 | `env-leak-guard.test.ts` | Server refuses to start if credentials are inside the skill repo. |

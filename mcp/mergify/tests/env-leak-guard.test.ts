@@ -74,7 +74,7 @@ describe('env-leak-guard (a12)', () => {
   });
 
   it('refuses and exits non-zero when .env contains MERGIFY_MCP_ROLE', () => {
-    const path = makeTempEnv('MERGIFY_MCP_ROLE=coordinator\n');
+    const path = makeTempEnv('MERGIFY_MCP_ROLE=scrum-master\n');
     tempFiles.push(path);
     const cap = captureExit();
 

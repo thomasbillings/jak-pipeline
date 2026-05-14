@@ -95,8 +95,8 @@ describe('templates/agents/pr-reviewer.md (file shape)', () => {
     const content = fs.readFileSync(PR_REVIEWER_TEMPLATE, 'utf8');
     expect(content).toMatch(/mergify_get_queue_summary/);
     expect(content).toMatch(/mergify_check_pr_eligibility/);
-    expect(content).toMatch(/mergify_set_queue_state.*coordinator-only/i);
-    expect(content).toMatch(/mergify_replay_pr.*coordinator-only/i);
+    expect(content).toMatch(/mergify_set_queue_state.*scrum-master-only/i);
+    expect(content).toMatch(/mergify_replay_pr.*scrum-master-only/i);
   });
 
   it('mentions both tier modes (full + fast)', () => {
@@ -201,7 +201,7 @@ describe('doctor.sh Plan 2 — pr-reviewer.md detection', () => {
     fs.mkdirSync(path.join(tmpDir, '.claude', 'mcp', 'mergify'), { recursive: true });
     fs.writeFileSync(
       path.join(tmpDir, '.claude', 'mcp', 'mergify', '.env'),
-      'MERGIFY_API_KEY=k\nMERGIFY_ORG=o\nGITHUB_TOKEN=t\nMERGIFY_MCP_ROLE=coordinator\n',
+      'MERGIFY_API_KEY=k\nMERGIFY_ORG=o\nGITHUB_TOKEN=t\nMERGIFY_MCP_ROLE=scrum-master\n',
     );
   });
 

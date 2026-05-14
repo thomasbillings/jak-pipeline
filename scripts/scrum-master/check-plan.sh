@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-plan.sh — mechanical validator for coordinator-pipeline plan files.
+# check-plan.sh — mechanical validator for scrum-master-pipeline plan files.
 #
 # Usage:
 #   check-plan.sh <path-to-plan.md>

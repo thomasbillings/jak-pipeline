@@ -27,11 +27,11 @@ You will receive an acknowledgement within 7 days. We aim to triage within 14 da
 The following are the most security-sensitive areas. Findings here are highest-priority:
 
 - **`mcp/mergify/src/redaction.ts`** — strips Mergify and GitHub token prefixes from MCP error envelopes. A bypass here exposes tokens to any agent that can read MCP errors. See `references/recovery-runbooks.md` §3 (MCP credential rotation).
-- **`mcp/mergify/src/role-gate.ts`** — role-based access control over the 6 MCP tools. A bypass elevates a `pr-reviewer` or `dev-agent` role to `coordinator` and lets them mutate the merge queue.
+- **`mcp/mergify/src/role-gate.ts`** — role-based access control over the 6 MCP tools. A bypass elevates a `pr-reviewer` or `dev-agent` role to `scrum-master` and lets them mutate the merge queue.
 - **`mcp/mergify/src/env-leak-guard.ts`** — refuses to start if credentials are detected in the skill repo. A bypass means a misplaced `.env` could be inadvertently committed.
 - **`scripts/hooks/pre-commit`** — scans staged content for token prefixes (`gh[psroue]_`, `github_pat_`, `mrg_live_`, `mrg_test_`). Missing prefix coverage is a defense-in-depth gap, not a critical bypass.
 - **`scripts/jira/transition.sh`** — handles `JIRA_API_TOKEN`. Injection via crafted ticket-key or reason argument would be a credential-handling issue.
-- **`scripts/coordinator/dispatch.sh`** — spawns headless agent processes with session-IDs derived from `uuidgen`/`python3`. UUID predictability or path-traversal in `slug` arguments are in scope.
+- **`scripts/scrum-master/dispatch.sh`** — spawns headless agent processes with session-IDs derived from `uuidgen`/`python3`. UUID predictability or path-traversal in `slug` arguments are in scope.
 - **`scripts/label-gate-decide.sh`** — the trust boundary that authorises agent-applied `queue:*` labels. A bypass allows un-reviewed code to enter the merge queue.
 
 ## Out of scope

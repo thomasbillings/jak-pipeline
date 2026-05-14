@@ -1,5 +1,5 @@
 /**
- * scripts/coordinator/dispatch.sh uuidgen fallback path.
+ * scripts/scrum-master/dispatch.sh uuidgen fallback path.
  *
  * The fallback chain — `uuidgen 2>/dev/null || python3 -c 'import uuid; ...'`
  * — exists for container images that ship without uuid-runtime. Verify both
@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
-// The exact one-liner used in scripts/coordinator/dispatch.sh:124.
+// The exact one-liner used in scripts/scrum-master/dispatch.sh:124.
 const UUID_EXPR = `SESSION_ID="$( { uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())'; } | tr 'A-Z' 'a-z')"; echo "$SESSION_ID"`;
 
 const UUID_LOWER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

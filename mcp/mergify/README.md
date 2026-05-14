@@ -20,7 +20,7 @@ Run the server (from an agent's MCP config):
     "MERGIFY_API_KEY": "...",
     "MERGIFY_ORG": "...",
     "GITHUB_TOKEN": "...",
-    "MERGIFY_MCP_ROLE": "coordinator"
+    "MERGIFY_MCP_ROLE": "scrum-master"
   }
 }
 ```
@@ -32,13 +32,13 @@ Run the server (from an agent's MCP config):
 | `MERGIFY_API_KEY`  | Mergify API key (`mrg_live_…` or `mrg_test_…`)                      | `<downstream>/.claude/mcp/mergify/.env`           |
 | `MERGIFY_ORG`      | GitHub org/user name that owns the repos                             | `<downstream>/.claude/mcp/mergify/.env`           |
 | `GITHUB_TOKEN`     | GitHub PAT (`ghp_…` or `github_pat_…`), `repo` + `read:org` scopes  | `<downstream>/.claude/mcp/mergify/.env`           |
-| `MERGIFY_MCP_ROLE` | Role for this dispatch (`coordinator`, `pr-reviewer`, etc.)          | Injected at agent dispatch (not stored in `.env`) |
+| `MERGIFY_MCP_ROLE` | Role for this dispatch (`scrum-master`, `pr-reviewer`, etc.)          | Injected at agent dispatch (not stored in `.env`) |
 
 ## Role-gate matrix
 
 Sourced from `references/architecture.md §6`.
 
-| Tool                               | coordinator | pr-reviewer | dev-agent | planner |
+| Tool                               | scrum-master | pr-reviewer | dev-agent | planner |
 | ---------------------------------- | :---------: | :---------: | :-------: | :-----: |
 | `mergify_get_queue_summary`        | ✅          | ✅          | ✅        | ✅      |
 | `mergify_get_queue_details(pr)`    | ✅          | ✅          | ✅        | —       |

@@ -18,7 +18,7 @@ The branch name matches the change type and routes the eventual feature PR to th
 | `feat/`    | new feature, behaviour change          | `queue:feature` |
 | `chore/`   | tooling, CI, deps, config, docs-only   | `queue:infra`   |
 | `design/`  | CSS, Storybook stories, visual tweaks  | `queue:design`  |
-| `plan/`    | plan PRs (coordinator-pipeline)        | `queue:plan`    |
+| `plan/`    | plan PRs (scrum-master-pipeline)        | `queue:plan`    |
 | `docs/`    | doc-only changes that don't queue      | (none)          |
 
 The `branch-ticket-check.sh` pre-push hook enforces this — a branch that doesn't match one of the prefixes is rejected.
