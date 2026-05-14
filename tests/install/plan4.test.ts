@@ -148,4 +148,19 @@ describe('install.sh — Plan 4 section', () => {
     // exit code may be 0 or 1; what matters is sanitisation
     expect([0, 1]).toContain(result.exitCode);
   });
+
+  // Regression for finding (c): when CF_PAGES_PROJECT is unset and stdin
+  // isn't a TTY, install.sh must still write a marker line so doctor.sh can
+  // distinguish "user skipped" from "config.env missing or corrupted".
+  it('writes empty CF_PAGES_PROJECT= marker when unset and non-interactive', async () => {
+    // Run install WITHOUT setting CF_PAGES_PROJECT (override via empty string)
+    const result = await runInstall(tmpDir, { CF_PAGES_PROJECT: '' });
+    expect(result.exitCode).toBe(0);
+
+    const config = path.join(tmpDir, '.claude', 'jak-pipeline', 'config.env');
+    expect(fs.existsSync(config)).toBe(true);
+    const content = fs.readFileSync(config, 'utf8');
+    // The marker line must be present, with an empty value
+    expect(content).toMatch(/^CF_PAGES_PROJECT=$/m);
+  });
 });

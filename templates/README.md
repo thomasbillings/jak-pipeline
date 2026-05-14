@@ -5,7 +5,7 @@ Project-specific config templates copied into the downstream repo by `scripts/in
 ## Plan 2 — Mergify config + label trust boundary
 
 - **`.mergify.yml.tmpl`** — full Mergify config with the 5 named queues (`bug`, `plan`, `feature`, `infra`, `design`), priorities, branch globs, `update_method: rebase`, `batch_size: 1`. Day-0 state: every queue `disabled: true`. Install path: `<downstream>/.mergify.yml`. See `references/architecture.md` §5.
-- **`agents/pr-reviewer-label-gate.md`** — overlay appended to a downstream's existing `.claude/agents/pr-reviewer.md` (idempotent via `<!-- jak-pipeline:pr-reviewer-label-gate v1 -->` sentinel). Encodes the `queue:*` label-application gate: BLOCKERs=0 + tests-green + correct queue for the branch glob.
+- **`agents/pr-reviewer.md`** — full pr-reviewer agent file (shipped wholesale by PR-K, replacing the historical overlay-append model). Encodes the canonical `**Blockers (N)**` / `**Should-fix (M)**` / `**Nits (K)**` review format, the branch → queue label map, and the `queue:*` label-application gate (BLOCKERs=0 + CI green + own review APPROVED). Install path: `<downstream>/.claude/agents/pr-reviewer.md` (copy-if-missing — pre-existing user files preserved).
 - **`phase-rollout-commits.md`** — per-queue activation cookbook. Each phase is a unified diff against the Day-0 `.mergify.yml`. Day 6–13 enable order: `queue:bug` → `queue:feature` → `queue:design`. Rationale in `references/architecture.md` §11.
 
 ## Plan 3 — Jira integration
@@ -19,4 +19,4 @@ Project-specific config templates copied into the downstream repo by `scripts/in
 
 ## Other (skill-wide)
 
-- **`.gitignore` additions** — `scripts/install.sh` Plan 2 appends `agents/_label-log.jsonl` to the downstream's `.gitignore`. Plan 3 doesn't add new entries (the `.env` file lives under `.claude/`, which is typically already gitignored).
+- **`gitignore-additions.txt`** — unified template appended to the downstream's `.gitignore` by Plan 0. Combines the coordinator-pipeline block (agent state, journals, worktrees, plan-cache) with the jak-pipeline-specific entries (`/agents/_label-log.jsonl`, `/agents/_jira-retry.json`, `/.claude/jak-pipeline/config.env`). Sentinel-bounded: re-runs don't duplicate; uninstall strips the whole block.

@@ -84,13 +84,14 @@ if [[ "${JAK_REMOTE_CHECKS:-0}" == "1" ]]; then
   fi
 fi
 
-# Report
-for err in "${PREFLIGHT_ERRORS[@]:-}"; do
-  echo "[Pre-flight] ✗ $err" >&2
-done
-for warn in "${PREFLIGHT_WARNINGS[@]:-}"; do
-  echo "[Pre-flight] $warn" >&2
-done
+# Report — guard the loops so an empty array doesn't expand to a single
+# empty string under set -u and print bogus "[Pre-flight] ✗" lines.
+if (( ${#PREFLIGHT_ERRORS[@]} > 0 )); then
+  for err in "${PREFLIGHT_ERRORS[@]}"; do echo "[Pre-flight] ✗ $err" >&2; done
+fi
+if (( ${#PREFLIGHT_WARNINGS[@]} > 0 )); then
+  for warn in "${PREFLIGHT_WARNINGS[@]}"; do echo "[Pre-flight] $warn" >&2; done
+fi
 
 if [ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]; then
   echo "[Pre-flight] ✗ Hard checks failed — aborting. Set JAK_SKIP_PREFLIGHT=1 to bypass (not recommended)." >&2
@@ -518,6 +519,10 @@ fi  # end: PLAN3_ONLY != 1 (Plan 2 wrapper)
 PLAN3_ERRORS=()
 
 # (i) Copy Jira scripts to <downstream>/scripts/jak-pipeline/jira/
+# Unlike Plan 0's _copy_if_missing for user-customisable templates (agent
+# files, plan template), Plan 3 + Plan 4 scripts are upstream-owned and
+# refresh on every install. Users who need a customised behaviour fork the
+# whole flow rather than patching individual installed scripts.
 JIRA_SRC="${JAK_SKILL_ROOT}/scripts/jira"
 JIRA_DEST="${DOWNSTREAM_ROOT}/scripts/jak-pipeline/jira"
 mkdir -p "${JIRA_DEST}/lib"
@@ -724,7 +729,11 @@ else
       fi
     fi
   else
-    echo "[Plan 4] SKIP CF_PAGES_PROJECT — set CF_PAGES_PROJECT env var or edit config.env manually"
+    # Write an empty marker so doctor.sh can distinguish "user skipped" from
+    # "config.env missing or corrupted". Doctor surfaces empty CF_PAGES_PROJECT
+    # as a configurable, not a defect.
+    printf 'CF_PAGES_PROJECT=\n' >> "$PLAN4_CONFIG_ENV"
+    echo "[Plan 4] SKIP CF_PAGES_PROJECT — wrote empty marker to config.env (set CF_PAGES_PROJECT env var on re-run or edit config.env manually)"
   fi
 fi
 
