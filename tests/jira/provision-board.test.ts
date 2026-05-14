@@ -281,6 +281,42 @@ describe('provision-board.sh — workflow-API provisioning (issue #23)', () => {
     expect(payload.workflowSchemeId).toBeUndefined();
   });
 
+  it('switch payload populates mappingsByIssueTypeOverride when project has legacy statuses', async () => {
+    // After /workflows/create completes in production, the new statuses are
+    // global — so /statuses/search resolves them. Wiring globalSearchHits to
+    // all 12 names mimics that post-create state and exercises the mapping
+    // build. An empty override array would 4xx with "Status mappings are
+    // required for issue type ID …" — this test catches that regression.
+    const allHits: Record<string, string> = {};
+    CANONICAL_STATES.forEach((s, i) => { allHits[s] = `${20000 + i}`; });
+
+    wireStub(stub, 'SCRUM', '10166', {
+      globalSearchHits: allHits,
+      presentStatuses: ['To Do', 'In Progress'],
+    });
+
+    await runScript(SCRIPT, ['--project', 'SCRUM'], {
+      JIRA_BASE_URL: `http://127.0.0.1:${stub.port}`,
+      JIRA_ENV_FILE: envFile,
+    });
+
+    const switchPost = stub.requests.find(
+      (r) => r.method === 'POST' && r.url === '/rest/api/3/workflowscheme/project/switch'
+    );
+    const payload = JSON.parse(switchPost!.body);
+
+    expect(payload.mappingsByIssueTypeOverride.length).toBeGreaterThan(0);
+    const firstType = payload.mappingsByIssueTypeOverride[0];
+    expect(firstType.issueTypeId).toBeTruthy();
+    expect(firstType.statusMappings.length).toBeGreaterThan(0);
+    for (const m of firstType.statusMappings) {
+      expect(m.oldStatusId).toBeTruthy();
+      expect(m.newStatusId).toBeTruthy();
+      // newStatusId must be one of the wired global hits
+      expect(Object.values(allHits)).toContain(m.newStatusId);
+    }
+  });
+
   // ─── Idempotency ──────────────────────────────────────────────────────────
 
   it('no-ops (no POST/PUT writes) when project already has jak-pipeline scheme + all 12 statuses', async () => {
