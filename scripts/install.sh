@@ -423,36 +423,23 @@ else
   echo "[Plan 2] ✓ Installed .mergify.yml"
 fi
 
-# (ii) Append pr-reviewer label-gate overlay (idempotent via sentinel comment)
-OVERLAY_SRC="${JAK_SKILL_ROOT}/templates/agents/pr-reviewer-label-gate.md"
+# (ii) Install the pr-reviewer agent template (copy-if-missing)
+# The pr-reviewer agent (templates/agents/pr-reviewer.md) ships the full
+# review rubric + label-gate logic baked in. Replaces the historical overlay-
+# append model (Plan 2 used to append a sentinel-bounded block onto a
+# pre-existing pr-reviewer.md, which only worked if a downstream pre-shipped
+# one — coordinator-pipeline never did).
+PR_REVIEWER_SRC="${JAK_SKILL_ROOT}/templates/agents/pr-reviewer.md"
 PR_REVIEWER_DEST="${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md"
-SENTINEL="<!-- jak-pipeline:pr-reviewer-label-gate v1 -->"
 
-if [ ! -f "$OVERLAY_SRC" ]; then
-  PLAN2_ERRORS+=("MISSING: $OVERLAY_SRC")
-elif [ ! -f "$PR_REVIEWER_DEST" ]; then
-  echo "[Plan 2] SKIP overlay — $PR_REVIEWER_DEST does not exist (create it first)"
+if [ ! -f "$PR_REVIEWER_SRC" ]; then
+  PLAN2_ERRORS+=("MISSING: $PR_REVIEWER_SRC")
+elif [ -f "$PR_REVIEWER_DEST" ]; then
+  echo "[Plan 2] ✓ .claude/agents/pr-reviewer.md already present (idempotent — not overwritten)"
 else
-  if grep -qF "$SENTINEL" "$PR_REVIEWER_DEST" 2>/dev/null; then
-    echo "[Plan 2] ✓ pr-reviewer overlay already present (idempotent)"
-  else
-    SCRIPTS_DEST="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/scripts"
-    mkdir -p "$SCRIPTS_DEST"
-    for script in label-gate-decide.sh label-log-append.sh branch-ticket-check.sh; do
-      src="${JAK_SKILL_ROOT}/scripts/${script}"
-      if [ -f "$src" ]; then
-        cp "$src" "${SCRIPTS_DEST}/${script}"
-        chmod +x "${SCRIPTS_DEST}/${script}"
-      else
-        PLAN2_ERRORS+=("MISSING script: $src")
-      fi
-    done
-    if [ ${#PLAN2_ERRORS[@]} -eq 0 ]; then
-      echo "" >> "$PR_REVIEWER_DEST"
-      cat "$OVERLAY_SRC" >> "$PR_REVIEWER_DEST"
-      echo "[Plan 2] ✓ Appended pr-reviewer label-gate overlay"
-    fi
-  fi
+  mkdir -p "$(dirname "$PR_REVIEWER_DEST")"
+  cp "$PR_REVIEWER_SRC" "$PR_REVIEWER_DEST"
+  echo "[Plan 2] ✓ Installed .claude/agents/pr-reviewer.md"
 fi
 
 # (iii) Install scripts to .claude/jak-pipeline/scripts/
