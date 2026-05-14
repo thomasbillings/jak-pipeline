@@ -4,14 +4,14 @@
 #
 # Usage: branch-ticket-check.sh <branch_name>
 # Exit 0 = valid; exit 1 = invalid (stderr message names branch + regex).
-# Callable as a git pre-push hook or from CI / coordinator code.
+# Callable as a git pre-push hook or from CI / scrum-master code.
 #
 # Project key resolution (priority order):
 #   1. JIRA_TICKET_PROJECT_KEY — explicit override (CI / one-off bypass)
 #   2. JIRA_PROJECT             — sourced from .claude/jira/.env when the
 #                                 caller sources it; respected directly here
 #   3. .claude/jira/.env's JIRA_PROJECT — auto-discovered from repo root
-#   4. .coordinator-pipeline.json's `jira_project` field — auto-discovered.
+#   4. .scrum-master.json's `jira_project` field — auto-discovered.
 #      NOT `.project`, which is the downstream consumer name (e.g.
 #      "survaigo-ai") rather than a Jira project key.
 #   5. SCRUM — legacy default; preserves backward compat for installs
@@ -45,10 +45,10 @@ resolve_project_key() {
         return
       fi
     fi
-    if [[ -f "$repo_root/.coordinator-pipeline.json" ]] && command -v jq >/dev/null 2>&1; then
+    if [[ -f "$repo_root/.scrum-master.json" ]] && command -v jq >/dev/null 2>&1; then
       local from_cfg
       from_cfg="$(jq -r '.jira_project // empty' \
-        "$repo_root/.coordinator-pipeline.json" 2>/dev/null || true)"
+        "$repo_root/.scrum-master.json" 2>/dev/null || true)"
       if [[ -n "$from_cfg" ]] && [[ "$from_cfg" != "null" ]]; then
         echo "$from_cfg"
         return

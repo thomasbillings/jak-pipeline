@@ -1,4 +1,4 @@
-export type Role = 'coordinator' | 'pr-reviewer' | 'dev-agent' | 'planner';
+export type Role = 'scrum-master' | 'pr-reviewer' | 'dev-agent' | 'planner';
 export type ToolName =
   | 'mergify_get_queue_summary'
   | 'mergify_get_queue_details'
@@ -9,11 +9,11 @@ export type ToolName =
 
 export type GateResult = 'allow' | 'role-refused' | 'role-unrecognised';
 
-const KNOWN_ROLES = new Set<Role>(['coordinator', 'pr-reviewer', 'dev-agent', 'planner']);
+const KNOWN_ROLES = new Set<Role>(['scrum-master', 'pr-reviewer', 'dev-agent', 'planner']);
 
 // Per architecture.md §6 role-gate matrix
 const MATRIX: Record<Role, Set<ToolName>> = {
-  coordinator: new Set([
+  'scrum-master': new Set([
     'mergify_get_queue_summary',
     'mergify_get_queue_details',
     'mergify_check_pr_eligibility',

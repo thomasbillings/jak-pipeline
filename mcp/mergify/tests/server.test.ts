@@ -23,9 +23,9 @@ describe('server shape (a1, a2)', () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
 
-      // Verify all 6 tools can be invoked (coordinator role) — proves registration
+      // Verify all 6 tools can be invoked (scrum-master role) — proves registration
       for (const toolName of EXPECTED_TOOLS) {
-        const result = await server.invokeWithRole('coordinator', toolName, { pr: 1, state: 'locked', reason: 'test' });
+        const result = await server.invokeWithRole('scrum-master', toolName, { pr: 1, state: 'locked', reason: 'test' });
         expect(result.type, `tool ${toolName} should be registered`).toBe('allow');
       }
     });
@@ -33,7 +33,7 @@ describe('server shape (a1, a2)', () => {
     it('does not include unregistered tools', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'nonexistent_tool' as never, {});
+      const result = await server.invokeWithRole('scrum-master', 'nonexistent_tool' as never, {});
       // nonexistent tool = role-refused (caught at gate level as unknown tool)
       expect(['role-refused', 'role-unrecognised']).toContain(result.type);
     });
@@ -41,14 +41,14 @@ describe('server shape (a1, a2)', () => {
     it('mergify_get_queue_summary accepts no required args', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_get_queue_summary', {});
+      const result = await server.invokeWithRole('scrum-master', 'mergify_get_queue_summary', {});
       expect(result.type).toBe('allow');
     });
 
     it('mergify_get_queue_details accepts pr argument', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_get_queue_details', { pr: 42 });
+      const result = await server.invokeWithRole('scrum-master', 'mergify_get_queue_details', { pr: 42 });
       expect(result.type).toBe('allow');
       expect((result as { type: 'allow'; result: unknown }).result).toMatchObject({ pr: 42 });
     });
@@ -56,28 +56,28 @@ describe('server shape (a1, a2)', () => {
     it('mergify_check_pr_eligibility accepts pr argument', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_check_pr_eligibility', { pr: 42 });
+      const result = await server.invokeWithRole('scrum-master', 'mergify_check_pr_eligibility', { pr: 42 });
       expect(result.type).toBe('allow');
     });
 
     it('mergify_list_queue_freezes accepts no required args', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_list_queue_freezes', {});
+      const result = await server.invokeWithRole('scrum-master', 'mergify_list_queue_freezes', {});
       expect(result.type).toBe('allow');
     });
 
     it('mergify_set_queue_state accepts state and reason', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_set_queue_state', { state: 'locked', reason: 'maintenance' });
+      const result = await server.invokeWithRole('scrum-master', 'mergify_set_queue_state', { state: 'locked', reason: 'maintenance' });
       expect(result.type).toBe('allow');
     });
 
     it('mergify_replay_pr accepts pr and reason', async () => {
       const { createTestServer } = await import('../src/server.js');
       const server = await createTestServer();
-      const result = await server.invokeWithRole('coordinator', 'mergify_replay_pr', { pr: 99, reason: 'retry' });
+      const result = await server.invokeWithRole('scrum-master', 'mergify_replay_pr', { pr: 99, reason: 'retry' });
       expect(result.type).toBe('allow');
     });
   });

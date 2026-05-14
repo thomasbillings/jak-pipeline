@@ -33,7 +33,7 @@ function run(
 
 describe('scripts/label-gate-decide.sh', () => {
   it('(i) refuses with exit 2 if role is not pr-reviewer', () => {
-    const r = run(['coordinator', '42', 'queue:feature']);
+    const r = run(['scrum-master', '42', 'queue:feature']);
     expect(r.status).toBe(2);
     expect(r.stdout).toMatch(/role-not-authorised|role_not_authorised/);
   });

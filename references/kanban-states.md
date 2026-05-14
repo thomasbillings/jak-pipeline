@@ -12,7 +12,7 @@ The 12 states fall into three groups:
 2. **Backlog** — committed for delivery; prioritised against other Backlog items but not yet started.
 3. **Planning** — a planner agent is authoring (or refining) the plan file.
 4. **Plan Review** — plan PR is open; plan-reviewer is judging it; user is the merger.
-5. **Ready to Dev** — plan PR has merged; plan is approved and unclaimed; coordinator can dispatch.
+5. **Ready to Dev** — plan PR has merged; plan is approved and unclaimed; scrum-master can dispatch.
 6. **In Development** — a dev-agent is implementing the plan in a worktree.
 7. **PR Review** — feature PR is open; pr-reviewer (and any required human reviewers) are evaluating.
 8. **Merge Queue** — feature PR has been queued by Mergify; awaiting batch CI + merge.
@@ -33,7 +33,7 @@ The 12 states fall into three groups:
 - `Backlog → Planning` — a planner agent has been dispatched.
 - `Planning → Plan Review` — plan PR has been opened.
 - `Plan Review → Ready to Dev` — plan PR has merged (the merge IS the approval signal).
-- `Ready to Dev → In Development` — coordinator has dispatched a dev-agent against the plan.
+- `Ready to Dev → In Development` — scrum-master has dispatched a dev-agent against the plan.
 - `In Development → PR Review` — feature PR has been opened.
 - `PR Review → Merge Queue` — pr-reviewer + required reviewers have approved AND `queue:*` label has been applied by an authorised actor.
 - `Merge Queue → UAT` — Mergify has merged the PR to main.
@@ -78,7 +78,7 @@ stateDiagram-v2
   Planning --> PlanReview
   PlanReview --> Planning : reviewer rejects
   PlanReview --> ReadyToDev : plan PR merges
-  ReadyToDev --> InDevelopment : coordinator dispatches
+  ReadyToDev --> InDevelopment : scrum-master dispatches
   InDevelopment --> PRReview : feature PR opens
   PRReview --> InDevelopment : BLOCKER raised
   PRReview --> MergeQueue : approved + queue:* label applied
@@ -117,7 +117,7 @@ stateDiagram-v2
 | Backlog         | Owner               | none                                                                        |
 | Planning        | planner agent       | dispatched via Agent tool with brief                                        |
 | Plan Review     | plan-reviewer agent | dispatched by planner after PR open                                         |
-| Ready to Dev    | coordinator         | `/coordinator-tick` surfaces approved+unclaimed plans                       |
+| Ready to Dev    | scrum-master         | `/scrum-master` surfaces approved+unclaimed plans                       |
 | In Development  | dev-agent           | spawned headless `claude -p` by `dispatch.sh` in a worktree                 |
 | PR Review       | pr-reviewer agent   | dispatched by dev-agent on feature PR; human reviewers add approvals        |
 | Merge Queue     | Mergify             | label-driven (`queue:*` applied by authorised agent only)                   |

@@ -17,7 +17,7 @@ function makeTempDir(): string {
 }
 
 function setupDownstream(tmpDir: string): void {
-  // Plan 0 now installs the coordinator scaffolding (tick.sh, planner.md, etc.)
+  // Plan 0 now installs the scrum-master scaffolding (tick.sh, planner.md, etc.)
   // so we only seed an empty git repo here. Plan 2's pr-reviewer.md is still
   // overlay-appended; that overlay is being replaced in PR-K.
   fs.mkdirSync(path.join(tmpDir, '.git', 'hooks'), { recursive: true });
@@ -95,25 +95,25 @@ describe('uninstall.sh', () => {
   it('removes tick.sh entirely (Plan 0 now owns it)', () => {
     runInstall(tmpDir);
     // Sanity: install created the file
-    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh'))).toBe(true);
 
     runUninstall(tmpDir);
-    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'))).toBe(false);
-    // scripts/coordinator/ dir removed if empty
-    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'scrum-master', 'tick.sh'))).toBe(false);
+    // scripts/scrum-master/ dir removed if empty
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'scrum-master'))).toBe(false);
   });
 
-  it('strips the coordinator/jak-pipeline gitignore block (preserves pre-existing user entries)', () => {
+  it('strips the scrum-master/jak-pipeline gitignore block (preserves pre-existing user entries)', () => {
     fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n.env\n');
     runInstall(tmpDir);
 
     let gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
-    expect(gi).toMatch(/coordinator pipeline.*agent state/i);
+    expect(gi).toMatch(/scrum-master pipeline.*agent state/i);
 
     runUninstall(tmpDir);
 
     gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
-    expect(gi).not.toMatch(/coordinator pipeline/i);
+    expect(gi).not.toMatch(/scrum-master pipeline/i);
     expect(gi).toContain('node_modules/');
     expect(gi).toContain('.env');
   });

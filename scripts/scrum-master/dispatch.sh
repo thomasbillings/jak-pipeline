@@ -30,13 +30,13 @@ cd "$REPO_ROOT"
 #
 # Downstream consumers wanting a tighter posture can override:
 #
-#   JAK_PERMISSION_MODE=acceptEdits bash scripts/coordinator/dispatch.sh <slug>
+#   JAK_PERMISSION_MODE=acceptEdits bash scripts/scrum-master/dispatch.sh <slug>
 #
 # Valid claude values: acceptEdits | auto | bypassPermissions | default | dontAsk | plan
 JAK_PERMISSION_MODE="${JAK_PERMISSION_MODE:-bypassPermissions}"
 
 # Shared state_write helper (flocked). Defined in lib.sh so tick.sh uses the same.
-# Also exposes load_pipeline_config (reads .coordinator-pipeline.json → PLAN_REPO + PROJECT).
+# Also exposes load_pipeline_config (reads .scrum-master.json → PLAN_REPO + PROJECT).
 . "$(dirname "$0")/lib.sh"
 
 # Initialise state file + agents dir on fresh clones — tick.sh and dispatch.sh

@@ -1,6 +1,6 @@
 # jak-pipeline
 
-A reusable [Claude Code skill](https://claude.com/claude-code) that wires a Jira board + Agent overlay + named Mergify merge queues onto any project that already has `coordinator-pipeline` installed. Layers on top of `coordinator-pipeline` — plans/agents come from there; queue, board, and UAT scaffolding come from here.
+A reusable [Claude Code skill](https://claude.com/claude-code) that wires a Jira board + Agent overlay + named Mergify merge queues onto any project that already has `scrum-master-pipeline` installed. Layers on top of `scrum-master-pipeline` — plans/agents come from there; queue, board, and UAT scaffolding come from here.
 
 > **Primary documentation lives in [`SKILL.md`](SKILL.md).** This README is the GitHub-landing-page summary; read SKILL.md for the full skill contract, install flow, and current status.
 
@@ -17,7 +17,7 @@ A reusable [Claude Code skill](https://claude.com/claude-code) that wires a Jira
 
 ## Quick start
 
-The skill installs itself into a downstream project that already has `coordinator-pipeline`. Run from the target project's root:
+The skill installs itself into a downstream project that already has `scrum-master-pipeline`. Run from the target project's root:
 
 ```bash
 JAK_SKILL_ROOT=~/code/jak-pipeline bash $JAK_SKILL_ROOT/scripts/install.sh
@@ -59,4 +59,4 @@ npm run build                   # emits dist/server.js
 
 ## Status
 
-Plans 0–4 are delivered + coordinator-pipeline absorbed + pr-reviewer agent shipped. See [`SKILL.md`](SKILL.md) for the status table and remaining operational follow-ups (first downstream install, the two §12 known-deferred items). The repo's security posture (LICENSE, SECURITY.md, branch protection, Dependabot, CodeQL, CODEOWNERS, pinned Actions, least-privilege workflow tokens) is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md).
+Plans 0–4 are delivered + scrum-master-pipeline absorbed + pr-reviewer agent shipped. See [`SKILL.md`](SKILL.md) for the status table and remaining operational follow-ups (first downstream install, the two §12 known-deferred items). The repo's security posture (LICENSE, SECURITY.md, branch protection, Dependabot, CodeQL, CODEOWNERS, pinned Actions, least-privilege workflow tokens) is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md).

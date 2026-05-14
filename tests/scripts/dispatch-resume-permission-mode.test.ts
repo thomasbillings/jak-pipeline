@@ -16,8 +16,8 @@ import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const SKILL_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const DISPATCH = path.join(SKILL_ROOT, 'scripts', 'coordinator', 'dispatch.sh');
-const LIB = path.join(SKILL_ROOT, 'scripts', 'coordinator', 'lib.sh');
+const DISPATCH = path.join(SKILL_ROOT, 'scripts', 'scrum-master', 'dispatch.sh');
+const LIB = path.join(SKILL_ROOT, 'scripts', 'scrum-master', 'lib.sh');
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'jak-dispatch-resume-'));
@@ -26,7 +26,7 @@ function makeTempDir(): string {
 /**
  * Build a fake downstream that satisfies `dispatch.sh --resume <slug>`:
  *   - .git/ (must be a git repo)
- *   - scripts/coordinator/{dispatch,lib}.sh (symlinked to the real scripts)
+ *   - scripts/scrum-master/{dispatch,lib}.sh (symlinked to the real scripts)
  *   - agents/_state.json with a session_id for the slug
  *   - agents/<DATE>-<SLUG>.md journal file (status: in_progress)
  *   - worktrees/<slug> with a fake worktree marker
@@ -42,11 +42,11 @@ function setupFakeDownstream(tmpDir: string): { slug: string; date: string; stub
   spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
                     'commit', '--allow-empty', '-m', 'init'], { cwd: tmpDir });
 
-  // Real coordinator scripts
-  fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
-  fs.copyFileSync(DISPATCH, path.join(tmpDir, 'scripts', 'coordinator', 'dispatch.sh'));
-  fs.copyFileSync(LIB, path.join(tmpDir, 'scripts', 'coordinator', 'lib.sh'));
-  fs.chmodSync(path.join(tmpDir, 'scripts', 'coordinator', 'dispatch.sh'), 0o755);
+  // Real scrum-master scripts
+  fs.mkdirSync(path.join(tmpDir, 'scripts', 'scrum-master'), { recursive: true });
+  fs.copyFileSync(DISPATCH, path.join(tmpDir, 'scripts', 'scrum-master', 'dispatch.sh'));
+  fs.copyFileSync(LIB, path.join(tmpDir, 'scripts', 'scrum-master', 'lib.sh'));
+  fs.chmodSync(path.join(tmpDir, 'scripts', 'scrum-master', 'dispatch.sh'), 0o755);
 
   // Plan file — dispatch.sh derives DATE from this filename before branching
   // into the MODE=resume path.
@@ -114,7 +114,7 @@ describe('dispatch.sh --resume: --permission-mode wiring (issue #60)', () => {
     const { slug, stubLog } = setupFakeDownstream(tmpDir);
 
     const stubBin = path.join(tmpDir, 'stub-bin');
-    const r = spawnSync('bash', ['scripts/coordinator/dispatch.sh', '--resume', slug], {
+    const r = spawnSync('bash', ['scripts/scrum-master/dispatch.sh', '--resume', slug], {
       cwd: tmpDir,
       env: {
         ...process.env,
@@ -149,7 +149,7 @@ describe('dispatch.sh --resume: --permission-mode wiring (issue #60)', () => {
     const { slug, stubLog } = setupFakeDownstream(tmpDir);
 
     const stubBin = path.join(tmpDir, 'stub-bin');
-    const r = spawnSync('bash', ['scripts/coordinator/dispatch.sh', '--resume', slug], {
+    const r = spawnSync('bash', ['scripts/scrum-master/dispatch.sh', '--resume', slug], {
       cwd: tmpDir,
       env: {
         ...process.env,

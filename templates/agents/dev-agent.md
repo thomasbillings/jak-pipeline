@@ -1,6 +1,6 @@
 ---
 name: dev-agent
-description: Implementer for the coordinator pipeline. Reads an approved plan file (plans/YYYY-MM-DD-<slug>.md), works in a dedicated git worktree, writes a checkpointed journal at agents/YYYY-MM-DD-<slug>.md with heartbeats, runs the full test + browser verification, opens a feature PR, and dispatches pr-reviewer. Supports headless resume via `claude -p --session-id <uuid>`. Use when a plan is approved and ready to execute.
+description: Implementer for the scrum-master pipeline. Reads an approved plan file (plans/YYYY-MM-DD-<slug>.md), works in a dedicated git worktree, writes a checkpointed journal at agents/YYYY-MM-DD-<slug>.md with heartbeats, runs the full test + browser verification, opens a feature PR, and dispatches pr-reviewer. Supports headless resume via `claude -p --session-id <uuid>`. Use when a plan is approved and ready to execute.
 model: sonnet
 tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 ---
@@ -200,7 +200,7 @@ Update `last_heartbeat: <ISO8601-now>` in frontmatter:
 - After every checkpoint transition.
 - At least every 5 minutes of wall-clock time if no checkpoint change (e.g. in a long test run, log `HH:MM | heartbeat | still in <checkpoint>`).
 
-Coordinator-tick uses `last_heartbeat` to detect stuck agents. Forgetting to heartbeat gets you flagged.
+Scrum Master-tick uses `last_heartbeat` to detect stuck agents. Forgetting to heartbeat gets you flagged.
 
 ## 10. Full test suite (before PR)
 
@@ -316,7 +316,7 @@ Before constructing the PR title, extract the ticket key from the branch name (s
 # Source lib.sh to get extract_ticket_from_branch (matches tick-extension.sh's
 # BRANCH_RE exactly so the dev-agent and drift reconciliation see the same
 # ticket key on the branch).
-. scripts/coordinator/lib.sh
+. scripts/scrum-master/lib.sh
 TICKET="$(extract_ticket_from_branch "$BRANCH")"
 # Build the title prefix: "<TICKET>: " when present, empty when not
 # (legacy fallback path for installs without branch-ticket-check enabled).
@@ -431,7 +431,7 @@ The maintainer (human) merges the PR. You do NOT merge.
 - **Test fails for unknown reason after two repair attempts** → call the advisor tool per CLAUDE.md's two-strike rule.
 - **Storybook component missing** → `status: blocked`, log `need new component`, exit.
 - **Dependency on another plan not done** → `status: blocked`, log dependency, exit.
-- **Permission wall on a file write.** As a headless `claude -p` child, you have no human present to click "allow" on a permission prompt. The project `.claude/settings.json` grants write access to `.claude/agents/**`, `.claude/commands/**`, `scripts/coordinator/**`, and the `agents/_observations*` staging files. If a plan requires writing anywhere else that triggers a permission prompt, DO NOT retry — after the second prompt rejection, log `HH:MM | BLOCKED | permission wall on <exact/path>: ask user to extend project .claude/settings.json allowlist` to the journal and exit cleanly with `status: blocked`. The coordinator picks this up on next `/coordinator-tick`.
+- **Permission wall on a file write.** As a headless `claude -p` child, you have no human present to click "allow" on a permission prompt. The project `.claude/settings.json` grants write access to `.claude/agents/**`, `.claude/commands/**`, `scripts/scrum-master/**`, and the `agents/_observations*` staging files. If a plan requires writing anywhere else that triggers a permission prompt, DO NOT retry — after the second prompt rejection, log `HH:MM | BLOCKED | permission wall on <exact/path>: ask user to extend project .claude/settings.json allowlist` to the journal and exit cleanly with `status: blocked`. The scrum-master picks this up on next `/scrum-master`.
 
 ## 18. Caveman level
 

@@ -15,7 +15,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 const SKILL_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const CHECK_PLAN = path.join(SKILL_ROOT, 'scripts', 'coordinator', 'check-plan.sh');
+const CHECK_PLAN = path.join(SKILL_ROOT, 'scripts', 'scrum-master', 'check-plan.sh');
 
 const tmpDirs: string[] = [];
 afterEach(() => {

@@ -19,4 +19,4 @@ Project-specific config templates copied into the downstream repo by `scripts/in
 
 ## Other (skill-wide)
 
-- **`gitignore-additions.txt`** — unified template appended to the downstream's `.gitignore` by Plan 0. Combines the coordinator-pipeline block (agent state, journals, worktrees, plan-cache) with the jak-pipeline-specific entries (`/agents/_label-log.jsonl`, `/agents/_jira-retry.json`, `/.claude/jak-pipeline/config.env`). Sentinel-bounded: re-runs don't duplicate; uninstall strips the whole block.
+- **`gitignore-additions.txt`** — unified template appended to the downstream's `.gitignore` by Plan 0. Combines the scrum-master-pipeline block (agent state, journals, worktrees, plan-cache) with the jak-pipeline-specific entries (`/agents/_label-log.jsonl`, `/agents/_jira-retry.json`, `/.claude/jak-pipeline/config.env`). Sentinel-bounded: re-runs don't duplicate; uninstall strips the whole block.

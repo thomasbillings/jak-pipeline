@@ -31,7 +31,7 @@ function setupMinimalDownstream(tmpDir: string): void {
   // .env with all required keys (Plan 1 check)
   fs.writeFileSync(
     path.join(tmpDir, '.claude', 'mcp', 'mergify', '.env'),
-    'MERGIFY_API_KEY=k\nMERGIFY_ORG=o\nGITHUB_TOKEN=t\nMERGIFY_MCP_ROLE=coordinator\n',
+    'MERGIFY_API_KEY=k\nMERGIFY_ORG=o\nGITHUB_TOKEN=t\nMERGIFY_MCP_ROLE=scrum-master\n',
   );
 }
 

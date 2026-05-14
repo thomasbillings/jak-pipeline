@@ -49,7 +49,7 @@ describe('createServer (a1, a2 — integration wiring)', () => {
     mockServer.registerTool.mockImplementation((name: string, _config: unknown, handler: McpToolHandler) => {
       registeredHandlers.set(name, handler);
     });
-    process.env['MERGIFY_MCP_ROLE'] = 'coordinator';
+    process.env['MERGIFY_MCP_ROLE'] = 'scrum-master';
   });
 
   afterEach(() => {
@@ -58,7 +58,7 @@ describe('createServer (a1, a2 — integration wiring)', () => {
 
   it('registers all 6 tools', async () => {
     const { createServer } = await import('../src/server.js?cv=1');
-    await createServer('coordinator');
+    await createServer('scrum-master');
 
     expect(registeredHandlers.size).toBe(6);
     expect(registeredHandlers.has('mergify_get_queue_summary')).toBe(true);
@@ -68,7 +68,7 @@ describe('createServer (a1, a2 — integration wiring)', () => {
 
   it('tool handler returns content for allowed role', async () => {
     const { createServer } = await import('../src/server.js?cv=2');
-    await createServer('coordinator');
+    await createServer('scrum-master');
 
     const handler = registeredHandlers.get('mergify_get_queue_summary');
     expect(handler).toBeDefined();
@@ -114,7 +114,7 @@ describe('createServer (a1, a2 — integration wiring)', () => {
     });
 
     const { createServer } = await import('../src/server.js?cv=5');
-    await createServer('coordinator');
+    await createServer('scrum-master');
 
     const handler = registeredHandlers.get('mergify_get_queue_details');
     expect(handler).toBeDefined();
@@ -144,7 +144,7 @@ describe('createTestServer catch block (lines 96-102)', () => {
     const server = await createTestServer();
 
     // All valid calls succeed with type:allow
-    const r = await server.invokeWithRole('coordinator', 'mergify_get_queue_summary', {});
+    const r = await server.invokeWithRole('scrum-master', 'mergify_get_queue_summary', {});
     expect(r.type).toBe('allow');
   });
 });

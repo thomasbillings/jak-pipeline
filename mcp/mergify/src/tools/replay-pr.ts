@@ -2,7 +2,7 @@ import type { ToolDefinition } from '../server.js';
 
 export const replayPrTool: ToolDefinition = {
   name: 'mergify_replay_pr',
-  description: 'Replay a PR through the Mergify queue (coordinator only).',
+  description: 'Replay a PR through the Mergify queue (scrum-master only).',
   inputSchema: {
     pr: { type: 'number' as const, description: 'PR number to replay', required: true },
     reason: { type: 'string' as const, description: 'Reason for the replay', required: true },

@@ -1,4 +1,4 @@
-# coordinator pipeline — agent state, journals, and dev worktrees live off-main
+# scrum-master pipeline — agent state, journals, and dev worktrees live off-main
 /agents/_state.json
 /agents/_state.json.lock
 /agents/_tick-log.md

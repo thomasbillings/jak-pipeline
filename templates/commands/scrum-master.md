@@ -1,13 +1,13 @@
-# Coordinator tick
+# Scrum Master tick
 
 Scan plans, in-flight sub-agents, and GitHub state. Reconcile. Report deltas. Ask the user what to do next.
 
-You are acting as the **coordinator**. Your caveman level is **lite** for chat output; the script log is normal.
+You are acting as the **scrum-master**. Your caveman level is **lite** for chat output; the script log is normal.
 
 ## 1. Run the tick
 
 ```bash
-bash scripts/coordinator/tick.sh
+bash scripts/scrum-master/tick.sh
 ```
 
 Pipe stdout through `jq` if you want to read it. Full deltas are appended to `agents/_tick-log.md`.
@@ -17,15 +17,15 @@ Pipe stdout through `jq` if you want to read it. Full deltas are appended to `ag
 The JSON has three sections:
 
 - `tick_at` — when you ran.
-- `eligible_plans` — dated plans with `schema_version: 1` discovered for this project. In **plan-repo mode** (`.coordinator-pipeline.json` present) these come from `$PLAN_REPO/main` filtered by `project: $PROJECT`. In **legacy mode** they come from the downstream repo's `origin/main` `plans/` directory. Each has `in_state`, `has_agent`, `state`.
-- `agents` — every sub-agent the coordinator has tracked, with a fresh `classification`.
+- `eligible_plans` — dated plans with `schema_version: 1` discovered for this project. In **plan-repo mode** (`.scrum-master.json` present) these come from `$PLAN_REPO/main` filtered by `project: $PROJECT`. In **legacy mode** they come from the downstream repo's `origin/main` `plans/` directory. Each has `in_state`, `has_agent`, `state`.
+- `agents` — every sub-agent the scrum-master has tracked, with a fresh `classification`.
 
 ### Decision tree
 
 For each **eligible_plan** where `has_agent == false AND in_state == false`:
 - This plan is present on `origin/main` with `schema_version: 1`, never dispatched, and not tracked in `_state.json`. Treat as approved+unclaimed.
 - Ask the user: "Dispatch `<slug>`?"
-- On yes: run `bash scripts/coordinator/dispatch.sh <slug>`.
+- On yes: run `bash scripts/scrum-master/dispatch.sh <slug>`.
 
 (There is no transitional `approved` state tracked in `_state.json` in MVP — merged-to-main is the signal, and absence from `_state.json` means unclaimed. If/when tick.sh gains a plan-PR-merge detector in v1.1, the third condition `state == "approved"` will return as a meaningful branch here.)
 

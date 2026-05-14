@@ -15,7 +15,7 @@ Everything `install.sh` created:
 - `.claude/jak-pipeline/scripts/{label-gate-decide,label-log-append,branch-ticket-check}.sh`
 - `.git/hooks/pre-commit` and `.git/hooks/pre-push` sentinel blocks (other hooks preserved)
 - `scripts/jak-pipeline/jira/*` + `scripts/jak-pipeline/uat/*` + `scripts/jak-pipeline/doctor.sh`
-- The `jak_pipeline_jira_tick_pass` block in `scripts/coordinator/tick.sh`
+- The `jak_pipeline_jira_tick_pass` block in `scripts/scrum-master/tick.sh`
 - `.claude/jira/.env` (credentials — removing it is intentional)
 - `.claude/jak-pipeline/config.env`
 - `docker/docker-compose.local-uat.yml`

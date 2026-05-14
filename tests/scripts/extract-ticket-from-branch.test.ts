@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
 
 const SKILL_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const LIB = path.join(SKILL_ROOT, 'scripts', 'coordinator', 'lib.sh');
+const LIB = path.join(SKILL_ROOT, 'scripts', 'scrum-master', 'lib.sh');
 
 function extract(branch: string): string {
   const r = spawnSync('bash', ['-c', `. "${LIB}" && extract_ticket_from_branch "${branch}"`], { encoding: 'utf8' });

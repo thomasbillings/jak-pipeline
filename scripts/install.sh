@@ -47,10 +47,10 @@ if [ "$_bash_major" -lt 4 ] 2>/dev/null; then
   PREFLIGHT_ERRORS+=("Bash version $_bash_major too old — bash ≥ 4 required")
 fi
 
-# (b) coordinator-pipeline must already be installed
-# The skill assumes <downstream>/scripts/coordinator/tick.sh exists and the
+# (b) scrum-master-pipeline must already be installed
+# The skill assumes <downstream>/scripts/scrum-master/tick.sh exists and the
 # pr-reviewer agent file is present at .claude/agents/pr-reviewer.md.
-# (b1) coordinator-pipeline scaffolding is no longer a prerequisite — Plan 0
+# (b1) scrum-master-pipeline scaffolding is no longer a prerequisite — Plan 0
 # installs it directly. We still check tick.sh later to decide whether Plan 0's
 # work is fresh-install vs idempotent re-run.
 
@@ -102,16 +102,16 @@ echo "[Pre-flight] ✓ All hard checks passed"
 fi  # end: JAK_SKIP_PREFLIGHT != 1
 
 # ---------------------------------------------------------------------------
-# Plan 0 — Coordinator pipeline scaffolding
+# Plan 0 — Scrum Master pipeline scaffolding
 # ---------------------------------------------------------------------------
 #
-# Absorbed from the (formerly separate) coordinator-pipeline skill. Installs
-# the planner / plan-reviewer / dev-agent / coordinator-tick template files
-# and the tick.sh / dispatch.sh / lib.sh / check-plan.sh coordinator scripts.
+# Absorbed from the (formerly separate) scrum-master-pipeline skill. Installs
+# the planner / plan-reviewer / dev-agent / scrum-master template files
+# and the tick.sh / dispatch.sh / lib.sh / check-plan.sh scrum-master scripts.
 # Idempotent — never overwrites a pre-existing file.
 #
 # JAK_PLAN_REPO    set to <owner>/<repo> to opt into plan-repo mode non-
-#                  interactively (writes .coordinator-pipeline.json on first run)
+#                  interactively (writes .scrum-master.json on first run)
 # JAK_PROJECT_NAME project name used in plan-repo mode (defaults to basename of
 #                  DOWNSTREAM_ROOT)
 # PLAN0_ONLY=1     limits this run to Plan 0 only (test-fixture mode)
@@ -119,10 +119,10 @@ fi  # end: JAK_SKIP_PREFLIGHT != 1
 PLAN0_ONLY="${PLAN0_ONLY:-0}"
 PLAN0_ERRORS=()
 
-# (i) Pipeline config (.coordinator-pipeline.json) for plan-repo mode
-PIPELINE_CONFIG="${DOWNSTREAM_ROOT}/.coordinator-pipeline.json"
+# (i) Pipeline config (.scrum-master.json) for plan-repo mode
+PIPELINE_CONFIG="${DOWNSTREAM_ROOT}/.scrum-master.json"
 if [ -f "$PIPELINE_CONFIG" ]; then
-  echo "[Plan 0] ✓ .coordinator-pipeline.json already present (idempotent)"
+  echo "[Plan 0] ✓ .scrum-master.json already present (idempotent)"
 elif [ -n "${JAK_PLAN_REPO:-}" ]; then
   _project="${JAK_PROJECT_NAME:-$(basename "$DOWNSTREAM_ROOT")}"
   cat > "$PIPELINE_CONFIG" <<EOF
@@ -131,7 +131,7 @@ elif [ -n "${JAK_PLAN_REPO:-}" ]; then
   "project": "${_project}"
 }
 EOF
-  echo "[Plan 0] ✓ Created .coordinator-pipeline.json (plan_repo=${JAK_PLAN_REPO}, project=${_project})"
+  echo "[Plan 0] ✓ Created .scrum-master.json (plan_repo=${JAK_PLAN_REPO}, project=${_project})"
 elif [ -t 0 ]; then
   echo "[Plan 0] Plan-repo mode? Plans can live in a separate GitHub repo so they don't"
   echo "[Plan 0]   contend with code PRs on this repo's CI queue."
@@ -149,7 +149,7 @@ elif [ -t 0 ]; then
   "project": "$_project_final"
 }
 EOF
-    echo "[Plan 0] ✓ Created .coordinator-pipeline.json (plan_repo=$_plan_repo_input, project=$_project_final)"
+    echo "[Plan 0] ✓ Created .scrum-master.json (plan_repo=$_plan_repo_input, project=$_project_final)"
   else
     echo "[Plan 0] Legacy mode — plans/ stays local"
   fi
@@ -157,10 +157,10 @@ else
   echo "[Plan 0] Legacy mode — plans/ stays local (set JAK_PLAN_REPO to opt into plan-repo mode)"
 fi
 
-# (ii) Create coordinator directories
+# (ii) Create scrum-master directories
 mkdir -p "$DOWNSTREAM_ROOT/plans" "$DOWNSTREAM_ROOT/agents" "$DOWNSTREAM_ROOT/agents/archive" \
          "$DOWNSTREAM_ROOT/.claude/agents" "$DOWNSTREAM_ROOT/.claude/commands" \
-         "$DOWNSTREAM_ROOT/scripts/coordinator"
+         "$DOWNSTREAM_ROOT/scripts/scrum-master"
 
 # (iii) Copy templates — never overwrite (user may have customised)
 _copy_if_missing() {
@@ -180,41 +180,42 @@ _copy_if_missing() {
 _copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/planner.md"        "$DOWNSTREAM_ROOT/.claude/agents/planner.md"        ".claude/agents/planner.md"
 _copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/plan-reviewer.md"  "$DOWNSTREAM_ROOT/.claude/agents/plan-reviewer.md"  ".claude/agents/plan-reviewer.md"
 _copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/dev-agent.md"      "$DOWNSTREAM_ROOT/.claude/agents/dev-agent.md"      ".claude/agents/dev-agent.md"
-_copy_if_missing "${JAK_SKILL_ROOT}/templates/commands/coordinator-tick.md" "$DOWNSTREAM_ROOT/.claude/commands/coordinator-tick.md" ".claude/commands/coordinator-tick.md"
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/commands/scrum-master.md" "$DOWNSTREAM_ROOT/.claude/commands/scrum-master.md" ".claude/commands/scrum-master.md"
 _copy_if_missing "${JAK_SKILL_ROOT}/templates/plans/plan-template.md"   "$DOWNSTREAM_ROOT/plans/_template.md"               "plans/_template.md"
 
-# Coordinator scripts (tick.sh, dispatch.sh, lib.sh, check-plan.sh).
+# Scrum Master scripts (tick.sh, dispatch.sh, lib.sh, check-plan.sh, scrum-master).
+# `scrum-master` is the user-facing terminal binary; the rest are its plumbing.
 # Idempotent — never overwrite, per the bootstrap.sh contract. To refresh on
 # an update, delete the specific file first then re-run install.sh.
-for s in tick.sh dispatch.sh lib.sh check-plan.sh; do
-  src="${JAK_SKILL_ROOT}/scripts/coordinator/${s}"
-  dst="$DOWNSTREAM_ROOT/scripts/coordinator/${s}"
+for s in tick.sh dispatch.sh lib.sh check-plan.sh scrum-master; do
+  src="${JAK_SKILL_ROOT}/scripts/scrum-master/${s}"
+  dst="$DOWNSTREAM_ROOT/scripts/scrum-master/${s}"
   if [ ! -f "$src" ]; then
     PLAN0_ERRORS+=("MISSING source: $src")
   elif [ -f "$dst" ]; then
-    echo "[Plan 0] ✓ scripts/coordinator/${s} already present (idempotent)"
+    echo "[Plan 0] ✓ scripts/scrum-master/${s} already present (idempotent)"
   else
     cp "$src" "$dst"
     chmod +x "$dst"
-    echo "[Plan 0] ✓ Installed scripts/coordinator/${s}"
+    echo "[Plan 0] ✓ Installed scripts/scrum-master/${s}"
   fi
 done
 
 # (iv) Append gitignore additions (sentinel: avoid duplicate appends)
 GITIGNORE="$DOWNSTREAM_ROOT/.gitignore"
 GITIGNORE_TMPL="${JAK_SKILL_ROOT}/templates/gitignore-additions.txt"
-GITIGNORE_MARKER="# coordinator pipeline — agent state"
+GITIGNORE_MARKER="# scrum-master pipeline — agent state"
 if [ ! -f "$GITIGNORE_TMPL" ]; then
   PLAN0_ERRORS+=("MISSING: $GITIGNORE_TMPL")
 elif [ -f "$GITIGNORE" ] && grep -qF "$GITIGNORE_MARKER" "$GITIGNORE"; then
-  echo "[Plan 0] ✓ .gitignore already has coordinator/jak-pipeline rules (idempotent)"
+  echo "[Plan 0] ✓ .gitignore already has scrum-master/jak-pipeline rules (idempotent)"
 else
   if [ -f "$GITIGNORE" ]; then
     # Make sure we don't double up; append a newline first if file doesn't end with one
     [ -n "$(tail -c 1 "$GITIGNORE")" ] && printf '\n' >> "$GITIGNORE"
   fi
   cat "$GITIGNORE_TMPL" >> "$GITIGNORE"
-  echo "[Plan 0] ✓ Appended coordinator/jak-pipeline rules to .gitignore"
+  echo "[Plan 0] ✓ Appended scrum-master/jak-pipeline rules to .gitignore"
 fi
 
 if [ ${#PLAN0_ERRORS[@]} -gt 0 ]; then
@@ -296,7 +297,7 @@ else
 MERGIFY_API_KEY=
 MERGIFY_ORG=
 GITHUB_TOKEN=
-MERGIFY_MCP_ROLE=coordinator
+MERGIFY_MCP_ROLE=scrum-master
 ENVEOF
   echo "[Plan 1] ✓ Created .env (minimal template)"
 fi
@@ -348,7 +349,7 @@ echo "[Plan 1] ✓ Registered 'mergify' MCP server in ${MCP_JSON}"
 # worktree, `git rev-parse --show-toplevel` returns the worktree path, and
 # the dispatched script doesn't exist there unless scripts/hooks/pre-commit
 # was committed to the repo (which install.sh writes but does not commit).
-# Result: every coordinator-pipeline dev-agent dispatched into a fresh
+# Result: every scrum-master-pipeline dev-agent dispatched into a fresh
 # worktree hit a hook-resolution failure at commit time.
 #
 # Fix: inline the scan body. Hook is self-contained and path-independent.
@@ -460,7 +461,7 @@ fi
 # review rubric + label-gate logic baked in. Replaces the historical overlay-
 # append model (Plan 2 used to append a sentinel-bounded block onto a
 # pre-existing pr-reviewer.md, which only worked if a downstream pre-shipped
-# one — coordinator-pipeline never did).
+# one — scrum-master-pipeline never did).
 PR_REVIEWER_SRC="${JAK_SKILL_ROOT}/templates/agents/pr-reviewer.md"
 PR_REVIEWER_DEST="${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md"
 
@@ -611,7 +612,7 @@ ENVEOF
 fi
 
 # (iii) Append tick.sh hook (idempotent via sentinel)
-TICK_SH="${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh"
+TICK_SH="${DOWNSTREAM_ROOT}/scripts/scrum-master/tick.sh"
 TICK_SENTINEL="jak_pipeline_jira_tick_pass"
 
 if [ ! -f "$TICK_SH" ]; then

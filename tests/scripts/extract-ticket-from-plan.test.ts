@@ -24,7 +24,7 @@ import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '../..');
-const LIB = resolve(REPO_ROOT, 'scripts/coordinator/lib.sh');
+const LIB = resolve(REPO_ROOT, 'scripts/scrum-master/lib.sh');
 
 function callHelper(planContent: string | null): { stdout: string; status: number } {
   let planPath = '/nonexistent/file';

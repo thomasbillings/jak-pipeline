@@ -20,7 +20,7 @@ This file holds operational recovery procedures for the jak-pipeline. Every runb
 
 ### Diagnosis
 
-The 6 Mergify MCP tools are stdio-registered, not shell CLIs — operators invoke them by asking Claude inside a coordinator-role session, not by running a shell command. The shell commands below cover the parts of diagnosis that don't go through MCP. The MCP-side prompts to use are shown alongside.
+The 6 Mergify MCP tools are stdio-registered, not shell CLIs — operators invoke them by asking Claude inside a scrum-master-role session, not by running a shell command. The shell commands below cover the parts of diagnosis that don't go through MCP. The MCP-side prompts to use are shown alongside.
 
 ```bash
 # 1. Compare the branch name against the queue's head glob
@@ -34,13 +34,13 @@ gh pr checks <PR>
 tail -20 agents/_label-log.jsonl | python3 -m json.tool
 ```
 
-**MCP-side diagnosis (Claude session, coordinator role):**
+**MCP-side diagnosis (Claude session, scrum-master role):**
 
-Ensure `MERGIFY_MCP_ROLE=coordinator` is set in the MCP server's `.env`, then ask Claude:
+Ensure `MERGIFY_MCP_ROLE=scrum-master` is set in the MCP server's `.env`, then ask Claude:
 
 > "Read the Mergify queue summary and tell me which queues have backlog. Then for PR &lt;N&gt;, run `mergify_get_queue_details` and `mergify_check_pr_eligibility` and report which `queue_conditions` are failing."
 
-Claude invokes `mergify_get_queue_summary` (30s cache), `mergify_get_queue_details(pr=<N>)`, and `mergify_check_pr_eligibility(pr=<N>)` via stdio MCP. The role gate enforces that only the `coordinator`, `pr-reviewer`, and `dev-agent` roles can read these tools.
+Claude invokes `mergify_get_queue_summary` (30s cache), `mergify_get_queue_details(pr=<N>)`, and `mergify_check_pr_eligibility(pr=<N>)` via stdio MCP. The role gate enforces that only the `scrum-master`, `pr-reviewer`, and `dev-agent` roles can read these tools.
 
 ### Recovery
 
@@ -58,14 +58,14 @@ gh pr edit <PR> --add-label queue:bug
 ```
 
 **If a queue is deadlocked (multiple PRs waiting, no progress):**
-Coordinator role only. Inside a Claude Code session with `MERGIFY_MCP_ROLE=coordinator` in the MCP `.env`, ask:
+Scrum Master role only. Inside a Claude Code session with `MERGIFY_MCP_ROLE=scrum-master` in the MCP `.env`, ask:
 
 > "Call `mergify_set_queue_state` with `state='locked'`, `reason='investigating deadlock on queue:feature'`. After I've investigated, I'll ask you to set it back to `unlocked`."
 
-The tool's input schema accepts `state` (one of `locked` / `unlocked`) and `reason` — note `locked`/`unlocked` is the Mergify state vocabulary; "freeze"/"thaw" in casual speech maps to `locked`/`unlocked` in the API. Only the `coordinator` role can invoke this — the `pr-reviewer` and `dev-agent` roles get a role-refusal envelope.
+The tool's input schema accepts `state` (one of `locked` / `unlocked`) and `reason` — note `locked`/`unlocked` is the Mergify state vocabulary; "freeze"/"thaw" in casual speech maps to `locked`/`unlocked` in the API. Only the `scrum-master` role can invoke this — the `pr-reviewer` and `dev-agent` roles get a role-refusal envelope.
 
 **If a single PR poisoned the queue (kept failing speculative checks):**
-Coordinator role only. Ask Claude:
+Scrum Master role only. Ask Claude:
 
 > "Call `mergify_replay_pr` with `pr=<N>`, `reason='speculative checks regressed; replaying'`."
 
@@ -250,7 +250,7 @@ bash scripts/jak-pipeline/jira/transition.sh \
 4. Re-run UAT against the new build.
 
 **Path B — revert on main (when fix-forward is too slow):**
-1. Coordinator authority only. Generate the revert commit:
+1. Scrum Master authority only. Generate the revert commit:
    ```bash
    git revert -m 1 <merge-sha>          # for a merge commit
    git revert <commit-sha>              # for a direct commit
@@ -273,7 +273,7 @@ bash scripts/jak-pipeline/jira/transition.sh \
 
 - Comment on the originating PR (now closed) with a link to the revert commit and a one-line rationale.
 - Page the Owner via the channel agreed in `references/owner-jql-filters.md` — UAT rollback is not a silent operation.
-- Append a one-line entry to `agents/_tick-log.md` so the coordinator records the manual intervention.
+- Append a one-line entry to `agents/_tick-log.md` so the scrum-master records the manual intervention.
 
 ### Volumes warning
 
@@ -338,7 +338,7 @@ This is a temporary safety-net while the queue is fixed. Plan to retire it again
 **Label-trust enforcement is rejecting valid labels:**
 1. Inspect a refused entry: `tail agents/_label-log.jsonl | python3 -m json.tool` — the `reason` field names the failing check.
 2. If the check is wrong (e.g. expects `Blockers (N)` format but pr-reviewer is emitting a variant), patch `scripts/label-gate-decide.sh` and ship as a `fix(scripts)` PR.
-3. As a temporary unblock for one PR, the coordinator role may apply the `queue:*` label manually — the audit log will mark it as a manual override (`"applied_by":"manual"` instead of `"applied_by":"pr-reviewer"`). Do not normalise manual overrides — every entry should be traceable to the pr-reviewer's gate decision.
+3. As a temporary unblock for one PR, the scrum-master role may apply the `queue:*` label manually — the audit log will mark it as a manual override (`"applied_by":"manual"` instead of `"applied_by":"pr-reviewer"`). Do not normalise manual overrides — every entry should be traceable to the pr-reviewer's gate decision.
 
 **Half-applied phase-rollout-commits cookbook patch:**
 If `git apply` partially applied a phase diff and aborted, the file may have stray hunks. Restore from `HEAD`:

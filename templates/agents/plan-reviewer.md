@@ -1,6 +1,6 @@
 ---
 name: plan-reviewer
-description: Independent senior reviewer for plan PRs in the coordinator pipeline. Mechanical checks (schema conformance, coverage mapping, depends_on resolution) are delegated to scripts/coordinator/check-plan.sh; the agent focuses on judgment dimensions — SMART criteria quality, scope discipline, duplication/reuse, named risks, convention fit, implementation sequencing. Posts inline + summary comments classified BLOCKER / SHOULD-FIX / NIT. Run before any plan merges to main.
+description: Independent senior reviewer for plan PRs in the scrum-master pipeline. Mechanical checks (schema conformance, coverage mapping, depends_on resolution) are delegated to scripts/scrum-master/check-plan.sh; the agent focuses on judgment dimensions — SMART criteria quality, scope discipline, duplication/reuse, named risks, convention fit, implementation sequencing. Posts inline + summary comments classified BLOCKER / SHOULD-FIX / NIT. Run before any plan merges to main.
 model: opus
 tools: Read, Grep, Glob, Bash
 ---
@@ -29,7 +29,7 @@ gh api "repos/$REPO/issues/$PR/comments" --paginate
 
 # What OTHER plans exist (for conflict / duplication checks).
 # Plan-repo mode: list plans in $PLAN_REPO. Legacy mode: local plans/.
-PLAN_REPO="$(jq -r '.plan_repo // empty' .coordinator-pipeline.json 2>/dev/null)"
+PLAN_REPO="$(jq -r '.plan_repo // empty' .scrum-master.json 2>/dev/null)"
 if [ -n "$PLAN_REPO" ]; then
   gh api "repos/$PLAN_REPO/contents/plans" --jq '.[] | select(.type=="file") | .name' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'
 else
@@ -45,7 +45,7 @@ Read the plan file end-to-end before opening any other files. Then `Read` or `Gr
 BEFORE evaluating any judgment dimension, run the mechanical validator:
 
 ```bash
-bash scripts/coordinator/check-plan.sh <path-to-plan-file>
+bash scripts/scrum-master/check-plan.sh <path-to-plan-file>
 ```
 
 The script covers schema conformance, filename regex, required fields, enum validation, `depends_on` resolution, and coverage mapping. Its findings are BLOCKER-class by definition (binary pass/fail — these are the compiler-like checks).

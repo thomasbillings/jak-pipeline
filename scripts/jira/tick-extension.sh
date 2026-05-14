@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tick-extension.sh — sourced fragment for coordinator tick.sh.
+# tick-extension.sh — sourced fragment for scrum-master tick.sh.
 #
 # Exports jak_pipeline_jira_tick_pass() function.
 # Does NOT execute on source — no side effects when sourced.

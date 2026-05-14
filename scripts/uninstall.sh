@@ -101,44 +101,46 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Plan 0 — Coordinator pipeline scaffolding
+# Plan 0 — Scrum Master pipeline scaffolding
 # -----------------------------------------------------------------------------
-_log "[Plan 0] Removing coordinator-pipeline scaffolding"
+_log "[Plan 0] Removing scrum-master-pipeline scaffolding"
 
 # Agent files
 _rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/planner.md" ".claude/agents/planner.md"
 _rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/plan-reviewer.md" ".claude/agents/plan-reviewer.md"
 _rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/dev-agent.md" ".claude/agents/dev-agent.md"
-_rm_if_exists "$DOWNSTREAM_ROOT/.claude/commands/coordinator-tick.md" ".claude/commands/coordinator-tick.md"
+_rm_if_exists "$DOWNSTREAM_ROOT/.claude/commands/scrum-master.md" ".claude/commands/scrum-master.md"
 
-# Coordinator scripts
-for s in tick.sh dispatch.sh lib.sh check-plan.sh; do
-  _rm_if_exists "$DOWNSTREAM_ROOT/scripts/coordinator/$s" "scripts/coordinator/$s"
+# Scrum Master scripts (including the user-facing `scrum-master` binary)
+for s in tick.sh dispatch.sh lib.sh check-plan.sh scrum-master; do
+  _rm_if_exists "$DOWNSTREAM_ROOT/scripts/scrum-master/$s" "scripts/scrum-master/$s"
 done
-if [ -d "$DOWNSTREAM_ROOT/scripts/coordinator" ]; then
-  rmdir "$DOWNSTREAM_ROOT/scripts/coordinator" 2>/dev/null || true
+if [ -d "$DOWNSTREAM_ROOT/scripts/scrum-master" ]; then
+  rmdir "$DOWNSTREAM_ROOT/scripts/scrum-master" 2>/dev/null || true
 fi
 
 # Plan template (user-written plans under plans/ are PRESERVED)
 _rm_if_exists "$DOWNSTREAM_ROOT/plans/_template.md" "plans/_template.md"
 
-# Pipeline config
-_rm_if_exists "$DOWNSTREAM_ROOT/.coordinator-pipeline.json" ".coordinator-pipeline.json"
+# Pipeline config — remove both the current and the legacy filenames
+# (downstream may carry either while migrating).
+_rm_if_exists "$DOWNSTREAM_ROOT/.scrum-master.json" ".scrum-master.json"
+_rm_if_exists "$DOWNSTREAM_ROOT/.coordinator-pipeline.json" ".coordinator-pipeline.json (legacy)"
 
 # Strip the entire jak-pipeline gitignore block via the leading marker comment
-# (the template starts with "# coordinator pipeline — agent state…").
+# (the template starts with "# scrum-master pipeline — agent state…").
 GITIGNORE="$DOWNSTREAM_ROOT/.gitignore"
-GITIGNORE_MARKER="# coordinator pipeline — agent state"
+GITIGNORE_MARKER="# scrum-master pipeline — agent state"
 if [ -f "$GITIGNORE" ] && grep -qF "$GITIGNORE_MARKER" "$GITIGNORE"; then
   if [[ "$DRY_RUN" == "1" ]]; then
-    _log "[dry-run] would strip the coordinator/jak-pipeline gitignore block from .gitignore"
+    _log "[dry-run] would strip the scrum-master/jak-pipeline gitignore block from .gitignore"
   else
     tmp=$(mktemp)
     python3 - "$GITIGNORE" "$tmp" <<'PYEOF'
 import sys, pathlib
 src, dst = sys.argv[1], sys.argv[2]
 text = pathlib.Path(src).read_text()
-marker = "# coordinator pipeline — agent state"
+marker = "# scrum-master pipeline — agent state"
 idx = text.find(marker)
 if idx == -1:
     pathlib.Path(dst).write_text(text)
@@ -151,7 +153,7 @@ else:
     pathlib.Path(dst).write_text(text[:line_start])
 PYEOF
     mv "$tmp" "$GITIGNORE"
-    _log "  stripped coordinator/jak-pipeline block from .gitignore"
+    _log "  stripped scrum-master/jak-pipeline block from .gitignore"
   fi
 fi
 
@@ -250,7 +252,7 @@ fi
 
 # Remove the tick.sh source line block (install appends a 3-line block plus
 # a preceding blank line).
-TICK_SH="$DOWNSTREAM_ROOT/scripts/coordinator/tick.sh"
+TICK_SH="$DOWNSTREAM_ROOT/scripts/scrum-master/tick.sh"
 if [ -f "$TICK_SH" ] && grep -qF "jak_pipeline_jira_tick_pass" "$TICK_SH"; then
   if [[ "$DRY_RUN" == "1" ]]; then
     _log "[dry-run] would remove jak_pipeline_jira_tick_pass block from tick.sh"
@@ -275,7 +277,7 @@ new = pattern.sub('', text)
 pathlib.Path(dst).write_text(new)
 PYEOF
     mv "$tmp" "$TICK_SH"
-    _log "  removed jak_pipeline_jira_tick_pass block from scripts/coordinator/tick.sh"
+    _log "  removed jak_pipeline_jira_tick_pass block from scripts/scrum-master/tick.sh"
   fi
 fi
 

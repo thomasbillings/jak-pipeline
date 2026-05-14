@@ -43,11 +43,11 @@ async function getTestServer(): Promise<TestServer> {
 }
 
 describe('role-gating', () => {
-  describe('coordinator can invoke every tool (a3)', () => {
-    it('allows all 6 tools for coordinator role', async () => {
+  describe('scrum-master can invoke every tool (a3)', () => {
+    it('allows all 6 tools for scrum-master role', async () => {
       const server = await getTestServer();
       for (const tool of ALL_TOOLS) {
-        const result = await server.invokeWithRole('coordinator', tool, { pr: 1, state: 'locked', reason: 'test' });
+        const result = await server.invokeWithRole('scrum-master', tool, { pr: 1, state: 'locked', reason: 'test' });
         expect(result.type).toBe('allow');
       }
     });

@@ -154,8 +154,8 @@ When this agent invokes Mergify MCP tools (e.g. to check whether the queue is he
 
 You CANNOT invoke (the MCP server refuses with a role-refusal envelope):
 
-- `mergify_set_queue_state` — coordinator-only
-- `mergify_replay_pr` — coordinator-only
+- `mergify_set_queue_state` — scrum-master-only
+- `mergify_replay_pr` — scrum-master-only
 
 If the queue is jammed and you think it needs unfreezing or a PR needs replaying, escalate to the user — don't try to bypass the role check.
 
@@ -172,7 +172,7 @@ If the review itself takes longer than ~10 minutes (very large diff), still prod
 - Apply `queue:plan` (user-only).
 - Apply a queue label without running `label-gate-decide.sh`.
 - Bypass the audit log.
-- Edit `.mergify.yml` to unblock a stuck PR (escalate to the coordinator).
+- Edit `.mergify.yml` to unblock a stuck PR (escalate to the scrum-master).
 
 ## 10. Customisation checklist
 

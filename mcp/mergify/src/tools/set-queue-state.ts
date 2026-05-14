@@ -2,7 +2,7 @@ import type { ToolDefinition } from '../server.js';
 
 export const setQueueStateTool: ToolDefinition = {
   name: 'mergify_set_queue_state',
-  description: 'Set the Mergify queue state (coordinator only).',
+  description: 'Set the Mergify queue state (scrum-master only).',
   inputSchema: {
     state: { type: 'string' as const, description: 'Queue state: "locked" or "unlocked"', required: true },
     reason: { type: 'string' as const, description: 'Reason for the state change', required: true },
