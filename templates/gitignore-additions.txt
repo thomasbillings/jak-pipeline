@@ -10,11 +10,13 @@
 # consumed by dispatch.sh). Safe to delete — regenerated on the next tick.
 /.plan-cache/
 
-# jak-pipeline — label-trust audit log (Plan 2)
-agents/_label-log.jsonl
+# jak-pipeline — label-trust audit log (Plan 2). Root-anchored — same lesson
+# as /agents/ above; an unanchored 'agents/_label-log.jsonl' would silently
+# match any 'agents/' subdirectory anywhere in the tree.
+/agents/_label-log.jsonl
 
 # jak-pipeline — Jira retry queue (Plan 3)
-agents/_jira-retry.json
+/agents/_jira-retry.json
 
 # jak-pipeline — local Plan 4 UAT config (no secrets here; CF_API_TOKEN is a GitHub Actions secret)
-.claude/jak-pipeline/config.env
+/.claude/jak-pipeline/config.env
