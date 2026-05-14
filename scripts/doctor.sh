@@ -137,15 +137,40 @@ PLAN2_PASS=true
 PLAN2_ERRORS=()
 
 DOWNSTREAM_ROOT="${DOWNSTREAM_ROOT:-$PWD}"
-JAK_SENTINEL="<!-- jak-pipeline:pr-reviewer-label-gate v1 -->"
+# PR-K (#18) replaced the overlay-append model with a full pr-reviewer agent
+# file. The label-gate logic is baked into the agent's body — no sentinel.
+# The (ii) check below now verifies the canonical description marker instead.
+JAK_PR_REVIEWER_MARKER="description: Reviews feature PRs for the jak-pipeline"
 
 # (i) Verify .mergify.yml exists and parses as YAML
+# Three-tier check: (1) file exists; (2) if PyYAML is available, parse it;
+# (3) if PyYAML is unavailable, fall back to a smoke check (file is non-empty
+# and contains the expected top-level 'queue_rules:' key). Distinguishes
+# missing-dep from genuine parse failure — the previous version conflated
+# both as "does not parse".
 MERGIFY_YML="${DOWNSTREAM_ROOT}/.mergify.yml"
 if [ ! -f "$MERGIFY_YML" ]; then
   PLAN2_ERRORS+=("MISSING: $MERGIFY_YML — run install.sh to create it")
   PLAN2_PASS=false
 else
-  if python3 -c "import yaml; yaml.safe_load(open('${MERGIFY_YML}'))" 2>/dev/null; then
+  _yaml_check_out="$(python3 - "$MERGIFY_YML" 2>&1 <<'PYEOF'
+import sys
+try:
+    import yaml
+except ModuleNotFoundError:
+    print("NO_YAML_MODULE")
+    sys.exit(2)
+try:
+    with open(sys.argv[1]) as f:
+        yaml.safe_load(f)
+    print("OK")
+except Exception as e:
+    print(f"PARSE_ERROR: {e}")
+    sys.exit(1)
+PYEOF
+)"
+  _yaml_status=$?
+  if [ "$_yaml_status" -eq 0 ]; then
     echo "[Plan 2] ✓ .mergify.yml exists and parses as valid YAML"
     if command -v mergify &>/dev/null; then
       if mergify validate "$MERGIFY_YML" 2>/dev/null; then
@@ -154,22 +179,33 @@ else
         echo "[Plan 2] WARN: mergify validate failed for $MERGIFY_YML (check schema)" >&2
       fi
     fi
+  elif [ "$_yaml_status" -eq 2 ]; then
+    # PyYAML not installed — fall back to a smoke check
+    if grep -qE '^queue_rules:' "$MERGIFY_YML" && [ -s "$MERGIFY_YML" ]; then
+      echo "[Plan 2] ✓ .mergify.yml smoke check passed (PyYAML not installed — install 'pip3 install pyyaml' for full parse)"
+    else
+      PLAN2_ERRORS+=("FAIL: $MERGIFY_YML smoke check failed (file empty or missing 'queue_rules:'); PyYAML not installed so a full parse couldn't run — install 'pip3 install pyyaml' to upgrade the check")
+      PLAN2_PASS=false
+    fi
   else
-    PLAN2_ERRORS+=("FAIL: $MERGIFY_YML does not parse as valid YAML")
+    PLAN2_ERRORS+=("FAIL: $MERGIFY_YML does not parse as valid YAML — ${_yaml_check_out}")
     PLAN2_PASS=false
   fi
 fi
 
-# (ii) Verify .claude/agents/pr-reviewer.md contains label-gate sentinel comment
+# (ii) Verify .claude/agents/pr-reviewer.md exists. If it carries our canonical
+# description marker, it's our shipped template (PR-K #18). If not, it's a
+# user-owned agent file — that's still valid (jak-pipeline preserves user
+# customisation); doctor surfaces it as a configurable, not a defect, since
+# the label-gate behaviour depends on whether the user's file implements it.
 PR_REVIEWER="${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md"
 if [ ! -f "$PR_REVIEWER" ]; then
-  PLAN2_ERRORS+=("MISSING: $PR_REVIEWER")
+  PLAN2_ERRORS+=("MISSING: $PR_REVIEWER — run scripts/install.sh Plan 2 section")
   PLAN2_PASS=false
-elif grep -qF "$JAK_SENTINEL" "$PR_REVIEWER" 2>/dev/null; then
-  echo "[Plan 2] ✓ pr-reviewer.md contains label-gate sentinel"
+elif grep -qF "$JAK_PR_REVIEWER_MARKER" "$PR_REVIEWER" 2>/dev/null; then
+  echo "[Plan 2] ✓ pr-reviewer.md is jak-pipeline's canonical template (label-gate baked in)"
 else
-  PLAN2_ERRORS+=("MISSING sentinel in $PR_REVIEWER — run install.sh to append overlay")
-  PLAN2_PASS=false
+  echo "[Plan 2] CONFIGURABLE: pr-reviewer.md is user-owned (no jak-pipeline marker) — verify the label-gate is implemented in your version"
 fi
 
 # (iii) Verify agents/_label-log.jsonl is creatable (write-permission check)
@@ -369,6 +405,25 @@ elif ! grep -qF "CF_PAGES_PROJECT" "$STORYBOOK_WORKFLOW" 2>/dev/null; then
   PLAN4_PASS=false
 else
   echo "[Plan 4] ✓ .github/workflows/storybook-preview.yml exists and references CF_PAGES_PROJECT"
+fi
+
+# (iii.4) Verify CF_PAGES_PROJECT is configured in config.env. Three states:
+# - line absent → install.sh Plan 4 hasn't run yet (Plan 4 always writes the line)
+# - line present and empty (CF_PAGES_PROJECT=) → user skipped; surface as a
+#   configurable, not a defect
+# - line present and non-empty → fully configured
+if [ -f "$PLAN4_CONFIG_ENV" ]; then
+  if ! grep -qE '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" 2>/dev/null; then
+    PLAN4_ERRORS+=("MISSING CF_PAGES_PROJECT marker in $PLAN4_CONFIG_ENV — re-run scripts/install.sh Plan 4 section")
+    PLAN4_PASS=false
+  else
+    _cf_value=$(grep '^CF_PAGES_PROJECT=' "$PLAN4_CONFIG_ENV" | head -1 | cut -d= -f2-)
+    if [ -z "$_cf_value" ]; then
+      echo "[Plan 4] CONFIGURABLE: CF_PAGES_PROJECT is empty in config.env — set the env var and re-run install.sh, or edit config.env directly"
+    else
+      echo "[Plan 4] ✓ CF_PAGES_PROJECT=${_cf_value} configured"
+    fi
+  fi
 fi
 
 # (iii.5) Verify UAT lifecycle scripts are installed and executable

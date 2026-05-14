@@ -724,7 +724,11 @@ else
       fi
     fi
   else
-    echo "[Plan 4] SKIP CF_PAGES_PROJECT — set CF_PAGES_PROJECT env var or edit config.env manually"
+    # Write an empty marker so doctor.sh can distinguish "user skipped" from
+    # "config.env missing or corrupted". Doctor surfaces empty CF_PAGES_PROJECT
+    # as a configurable, not a defect.
+    printf 'CF_PAGES_PROJECT=\n' >> "$PLAN4_CONFIG_ENV"
+    echo "[Plan 4] SKIP CF_PAGES_PROJECT — wrote empty marker to config.env (set CF_PAGES_PROJECT env var on re-run or edit config.env manually)"
   fi
 fi
 

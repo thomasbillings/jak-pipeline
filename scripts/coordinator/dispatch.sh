@@ -118,7 +118,10 @@ else
   [ ! -d "$WORKTREE" ] || { echo "worktree $WORKTREE already exists"; exit 6; }
   [ ! -f "$JOURNAL" ] || { echo "journal $JOURNAL already exists"; exit 7; }
 
-  SESSION_ID="$(uuidgen | tr 'A-Z' 'a-z')"
+  # uuidgen with python3 fallback (some container images lack uuid-runtime —
+  # e.g. ghcr.io/thomasbillings/claude-dev-base ships without it). Python is
+  # already a pre-flight hard requirement, so the fallback is always available.
+  SESSION_ID="$( { uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())'; } | tr 'A-Z' 'a-z')"
 
   # Create worktree + link deps using ABSOLUTE paths (robust to layout changes).
   # Branch from origin/main explicitly — HEAD-independent, so a concurrent
