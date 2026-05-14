@@ -4,6 +4,12 @@ title: "TITLE HERE"
 type: feature           # feature | fix | infra | chore
 status: draft
 priority: medium        # low | medium | high
+ticket: SCRUM-0         # optional but recommended; when present, dispatch.sh
+                        # names the dev-agent's branch feat/<TICKET>-<slug>
+                        # so it satisfies the branch-ticket-check pre-push
+                        # hook. Format: <PROJECT-KEY>-<N>. Drop the line
+                        # entirely (or leave the placeholder) to fall back
+                        # to feat/<slug>.
 depends_on: []          # list of other plan slugs (no date prefix) that must be done first
 parallel_safe: true
 owner: planner

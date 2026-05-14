@@ -107,7 +107,18 @@ fi
 DATE="$(basename "$PLAN_FILE" .md | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')"
 JOURNAL="agents/$DATE-$SLUG.md"
 WORKTREE="worktrees/$SLUG"
-BRANCH="feat/$SLUG"
+
+# Branch naming: if the plan frontmatter declares `ticket: <KEY-N>`, embed
+# it so the branch satisfies branch-ticket-check.sh's regex (e.g.
+# feat/S20-4-add-foo). Without `ticket:`, fall back to feat/<slug> — fine
+# for installs that don't enable branch-ticket-check. See issue #45.
+TICKET_FROM_PLAN="$(extract_ticket_from_plan "$PLAN_FILE")"
+if [ -n "$TICKET_FROM_PLAN" ]; then
+  BRANCH="feat/${TICKET_FROM_PLAN}-$SLUG"
+else
+  BRANCH="feat/$SLUG"
+fi
+
 NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [ "$MODE" = "resume" ]; then

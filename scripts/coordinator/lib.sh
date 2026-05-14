@@ -32,7 +32,6 @@ load_pipeline_config () {
   export PLAN_REPO PROJECT
 }
 
-
 # reconcile_state_from_journals
 #
 # Walks agents/_state.json's .agents map and, for each entry, parses the
@@ -84,6 +83,38 @@ for line in m.group(1).splitlines():
     print(f"{k}\t{v}")
 ' "$journal")
   done < <(jq -r '.agents // {} | keys[]' "$STATE_FILE" 2>/dev/null)
+}
+
+# extract_ticket_from_plan <plan-file-path>
+#
+# Echoes the `ticket:` value from the plan's YAML frontmatter, or empty if
+# absent. Used by dispatch.sh to construct the branch name as
+# `feat/<TICKET>-<slug>` so it satisfies jak-pipeline's branch-ticket-check
+# regex. Without a ticket field, dispatch falls back to `feat/<slug>` (legacy
+# behavior, fine for installs that don't have branch-ticket-check enabled).
+#
+# Tolerant of quoted ("S20-4"), unquoted (S20-4), and trailing-whitespace
+# values. Only the FIRST frontmatter block is scanned (between the first two
+# `---` lines).
+extract_ticket_from_plan () {
+  local plan_file="${1:-}"
+  [ -f "$plan_file" ] || { echo ""; return; }
+  awk '
+    BEGIN { in_frontmatter = 0; seen_marker = 0 }
+    /^---[[:space:]]*$/ {
+      seen_marker++
+      if (seen_marker == 1) { in_frontmatter = 1; next }
+      if (seen_marker == 2) { exit }
+    }
+    in_frontmatter && /^ticket:[[:space:]]/ {
+      sub(/^ticket:[[:space:]]*/, "")
+      gsub(/^["\x27]/, "")
+      gsub(/["\x27][[:space:]]*$/, "")
+      gsub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$plan_file"
 }
 
 # state_write <jq_expr> [jq args...]
