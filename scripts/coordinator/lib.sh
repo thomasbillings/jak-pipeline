@@ -32,6 +32,60 @@ load_pipeline_config () {
   export PLAN_REPO PROJECT
 }
 
+
+# reconcile_state_from_journals
+#
+# Walks agents/_state.json's .agents map and, for each entry, parses the
+# corresponding journal file's frontmatter. Updates status, last_heartbeat,
+# checkpoint, and pr_url in _state.json to match the journal.
+#
+# The journal is the source of truth — dev-agents write to it directly
+# and never touch _state.json. Without this reconcile pass, _state.json
+# stays frozen at the dispatch-time values and tick.sh's "stuck" detector
+# fires false-positives (heartbeat appears never to advance) and merged
+# plans stay eligible forever (status never flips to "done"). See #48.
+#
+# Idempotent — re-running with no journal changes is a no-op.
+# Requires: STATE_FILE and state_write defined. Caller cd'd to repo root.
+# Requires: python3 (hard dep, same as elsewhere in coordinator-pipeline).
+reconcile_state_from_journals () {
+  command -v jq >/dev/null 2>&1 || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  [ -f "$STATE_FILE" ] || return 0
+  local slug journal field key val
+  while IFS= read -r slug; do
+    [ -z "$slug" ] && continue
+    journal="$(ls agents/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"${slug}".md 2>/dev/null | head -1)"
+    [ -z "$journal" ] && continue
+    [ -f "$journal" ] || continue
+    # Parse frontmatter via python3 → emit lines of `key<TAB>value` for each
+    # tracked field we found. shlex.quote-safe.
+    while IFS=$'\t' read -r key val; do
+      [ -z "$key" ] && continue
+      [ -z "$val" ] && continue
+      state_write ".agents[\$slug].${key} = \$val" --arg slug "$slug" --arg val "$val"
+    done < <(python3 -c '
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    src = f.read()
+m = re.match(r"---\s*\n(.*?)\n---\s*\n", src, re.DOTALL)
+if not m:
+    sys.exit(0)
+for line in m.group(1).splitlines():
+    fm = re.match(r"^(status|last_heartbeat|checkpoint|pr_url)\s*:\s*(.+?)\s*$", line.rstrip())
+    if not fm:
+        continue
+    k, v = fm.group(1), fm.group(2)
+    if (v.startswith("\"") and v.endswith("\"")) or (v.startswith("'\''") and v.endswith("'\''")):
+        v = v[1:-1]
+    if v in ("", "null"):
+        continue
+    print(f"{k}\t{v}")
+' "$journal")
+  done < <(jq -r '.agents // {} | keys[]' "$STATE_FILE" 2>/dev/null)
+}
+
 # state_write <jq_expr> [jq args...]
 #
 # Read-modify-write `_state.json` atomically, under an exclusive flock
