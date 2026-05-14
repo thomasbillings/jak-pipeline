@@ -198,11 +198,21 @@ _rm_if_exists "$DOWNSTREAM_ROOT/scripts/hooks/pre-commit" "scripts/hooks/pre-com
 _log "[Plan 2] Removing Mergify config + label trust boundary"
 _rm_if_exists "$DOWNSTREAM_ROOT/.mergify.yml" ".mergify.yml"
 
-# Strip the pr-reviewer overlay (sentinel-bounded) — preserves user content
-_remove_sentinel_block \
-  "$DOWNSTREAM_ROOT/.claude/agents/pr-reviewer.md" \
-  "<!-- jak-pipeline:pr-reviewer-label-gate v1 -->" \
-  ".claude/agents/pr-reviewer.md (overlay)"
+# Remove the pr-reviewer agent. Two paths:
+# 1. If the file was installed by jak-pipeline (full agent — detect by our
+#    canonical description line), delete the whole file.
+# 2. If the file pre-existed and was overlay-appended (legacy upgrading path),
+#    strip the sentinel-bounded overlay block and preserve user content.
+PR_REVIEWER="$DOWNSTREAM_ROOT/.claude/agents/pr-reviewer.md"
+JAK_DESC_MARKER="description: Reviews feature PRs for the jak-pipeline"
+if [ -f "$PR_REVIEWER" ] && grep -qF "$JAK_DESC_MARKER" "$PR_REVIEWER"; then
+  _rm_if_exists "$PR_REVIEWER" ".claude/agents/pr-reviewer.md (jak-pipeline-owned)"
+else
+  _remove_sentinel_block \
+    "$PR_REVIEWER" \
+    "<!-- jak-pipeline:pr-reviewer-label-gate v1 -->" \
+    ".claude/agents/pr-reviewer.md (legacy overlay)"
+fi
 
 # Remove the three label-trust scripts
 for script in label-gate-decide.sh label-log-append.sh branch-ticket-check.sh; do
