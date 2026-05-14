@@ -1,0 +1,40 @@
+# CODEOWNERS — auto-requests review from the listed users on PRs touching
+# these paths. Does NOT block merge unless branch protection is set to
+# `require_code_owner_reviews: true` (currently off — solo workflow).
+#
+# Maintainer: @thomasbillings
+
+# Default fallback (least-specific match)
+* @thomasbillings
+
+# Security-critical: MCP server source (token handling, role gate, redaction)
+/mcp/mergify/src/                 @thomasbillings
+/mcp/mergify/tests/redaction.test.ts        @thomasbillings
+/mcp/mergify/tests/role-gating.test.ts      @thomasbillings
+/mcp/mergify/tests/env-leak-guard.test.ts   @thomasbillings
+/mcp/mergify/tests/pre-commit-hook.test.ts  @thomasbillings
+
+# Security-critical: pre-commit token scan + label-trust boundary
+/scripts/hooks/pre-commit         @thomasbillings
+/scripts/label-gate-decide.sh     @thomasbillings
+/scripts/label-log-append.sh      @thomasbillings
+/scripts/branch-ticket-check.sh   @thomasbillings
+
+# Install / uninstall / coordinator scripts — wide-blast-radius infrastructure
+/scripts/install.sh               @thomasbillings
+/scripts/uninstall.sh             @thomasbillings
+/scripts/doctor.sh                @thomasbillings
+/scripts/coordinator/             @thomasbillings
+/scripts/jira/                    @thomasbillings
+/scripts/uat/                     @thomasbillings
+
+# CI configuration and dependency management
+/.github/                         @thomasbillings
+
+# Authoritative architecture + runbooks — silent drift is a defect
+/references/                      @thomasbillings
+/SKILL.md                         @thomasbillings
+/SECURITY.md                      @thomasbillings
+
+# Templates that ship into downstream installs
+/templates/                       @thomasbillings

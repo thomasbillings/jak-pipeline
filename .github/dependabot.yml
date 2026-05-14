@@ -1,0 +1,55 @@
+version: 2
+updates:
+  # Top-level package.json (vitest, ts-node, tsx, etc.)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "queue:infra"
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # MCP server (mcp/mergify/) — runtime + dev deps for the role-gated Mergify
+  # MCP server. Security-sensitive: bumps here may touch the redaction wrapper
+  # or HTTP client. Reviewed manually before merge.
+  - package-ecosystem: npm
+    directory: "/mcp/mergify"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "queue:infra"
+      - "dependencies"
+      - "mcp-server"
+    commit-message:
+      prefix: "chore(mcp/deps)"
+      include: "scope"
+
+  # GitHub Actions in our own workflows (test.yml, codeql.yml). The workflow
+  # files pin actions to SHAs; dependabot opens PRs that update the SHA AND
+  # the version comment in tandem.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 3
+    labels:
+      - "queue:infra"
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
