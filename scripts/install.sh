@@ -50,12 +50,9 @@ fi
 # (b) coordinator-pipeline must already be installed
 # The skill assumes <downstream>/scripts/coordinator/tick.sh exists and the
 # pr-reviewer agent file is present at .claude/agents/pr-reviewer.md.
-if [ ! -f "${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh" ]; then
-  PREFLIGHT_ERRORS+=("MISSING: coordinator-pipeline not detected (no ${DOWNSTREAM_ROOT}/scripts/coordinator/tick.sh) — install coordinator-pipeline first; see ~/.claude/skills/coordinator-pipeline/SKILL.md")
-fi
-if [ ! -f "${DOWNSTREAM_ROOT}/.claude/agents/pr-reviewer.md" ]; then
-  PREFLIGHT_WARNINGS+=("WARN: .claude/agents/pr-reviewer.md not present — the Plan 2 pr-reviewer overlay will be skipped at install time; create the pr-reviewer agent first (coordinator-pipeline does NOT bundle this agent by default)")
-fi
+# (b1) coordinator-pipeline scaffolding is no longer a prerequisite — Plan 0
+# installs it directly. We still check tick.sh later to decide whether Plan 0's
+# work is fresh-install vs idempotent re-run.
 
 # (c) Downstream is a git repo (Mergify operates on PRs)
 if [ ! -d "${DOWNSTREAM_ROOT}/.git" ]; then
@@ -102,6 +99,134 @@ fi
 
 echo "[Pre-flight] ✓ All hard checks passed"
 fi  # end: JAK_SKIP_PREFLIGHT != 1
+
+# ---------------------------------------------------------------------------
+# Plan 0 — Coordinator pipeline scaffolding
+# ---------------------------------------------------------------------------
+#
+# Absorbed from the (formerly separate) coordinator-pipeline skill. Installs
+# the planner / plan-reviewer / dev-agent / coordinator-tick template files
+# and the tick.sh / dispatch.sh / lib.sh / check-plan.sh coordinator scripts.
+# Idempotent — never overwrites a pre-existing file.
+#
+# JAK_PLAN_REPO    set to <owner>/<repo> to opt into plan-repo mode non-
+#                  interactively (writes .coordinator-pipeline.json on first run)
+# JAK_PROJECT_NAME project name used in plan-repo mode (defaults to basename of
+#                  DOWNSTREAM_ROOT)
+# PLAN0_ONLY=1     limits this run to Plan 0 only (test-fixture mode)
+
+PLAN0_ONLY="${PLAN0_ONLY:-0}"
+PLAN0_ERRORS=()
+
+# (i) Pipeline config (.coordinator-pipeline.json) for plan-repo mode
+PIPELINE_CONFIG="${DOWNSTREAM_ROOT}/.coordinator-pipeline.json"
+if [ -f "$PIPELINE_CONFIG" ]; then
+  echo "[Plan 0] ✓ .coordinator-pipeline.json already present (idempotent)"
+elif [ -n "${JAK_PLAN_REPO:-}" ]; then
+  _project="${JAK_PROJECT_NAME:-$(basename "$DOWNSTREAM_ROOT")}"
+  cat > "$PIPELINE_CONFIG" <<EOF
+{
+  "plan_repo": "${JAK_PLAN_REPO}",
+  "project": "${_project}"
+}
+EOF
+  echo "[Plan 0] ✓ Created .coordinator-pipeline.json (plan_repo=${JAK_PLAN_REPO}, project=${_project})"
+elif [ -t 0 ]; then
+  echo "[Plan 0] Plan-repo mode? Plans can live in a separate GitHub repo so they don't"
+  echo "[Plan 0]   contend with code PRs on this repo's CI queue."
+  echo "[Plan 0]   Leave blank for legacy mode (plans live in this repo's plans/)."
+  printf "[Plan 0]   plan_repo (e.g. thomasbillings/survaigo-plans) [blank=skip]: "
+  read -r _plan_repo_input || _plan_repo_input=""
+  if [ -n "$_plan_repo_input" ]; then
+    _default_project="$(basename "$DOWNSTREAM_ROOT")"
+    printf "[Plan 0]   project name [%s]: " "$_default_project"
+    read -r _project_input || _project_input=""
+    _project_final="${_project_input:-$_default_project}"
+    cat > "$PIPELINE_CONFIG" <<EOF
+{
+  "plan_repo": "$_plan_repo_input",
+  "project": "$_project_final"
+}
+EOF
+    echo "[Plan 0] ✓ Created .coordinator-pipeline.json (plan_repo=$_plan_repo_input, project=$_project_final)"
+  else
+    echo "[Plan 0] Legacy mode — plans/ stays local"
+  fi
+else
+  echo "[Plan 0] Legacy mode — plans/ stays local (set JAK_PLAN_REPO to opt into plan-repo mode)"
+fi
+
+# (ii) Create coordinator directories
+mkdir -p "$DOWNSTREAM_ROOT/plans" "$DOWNSTREAM_ROOT/agents" "$DOWNSTREAM_ROOT/agents/archive" \
+         "$DOWNSTREAM_ROOT/.claude/agents" "$DOWNSTREAM_ROOT/.claude/commands" \
+         "$DOWNSTREAM_ROOT/scripts/coordinator"
+
+# (iii) Copy templates — never overwrite (user may have customised)
+_copy_if_missing() {
+  local src="$1" dst="$2" label="$3"
+  if [ ! -f "$src" ]; then
+    PLAN0_ERRORS+=("MISSING source: $src")
+    return
+  fi
+  if [ -f "$dst" ]; then
+    echo "[Plan 0] ✓ ${label} already present (idempotent — not overwritten)"
+  else
+    cp "$src" "$dst"
+    echo "[Plan 0] ✓ Installed ${label}"
+  fi
+}
+
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/planner.md"        "$DOWNSTREAM_ROOT/.claude/agents/planner.md"        ".claude/agents/planner.md"
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/plan-reviewer.md"  "$DOWNSTREAM_ROOT/.claude/agents/plan-reviewer.md"  ".claude/agents/plan-reviewer.md"
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/agents/dev-agent.md"      "$DOWNSTREAM_ROOT/.claude/agents/dev-agent.md"      ".claude/agents/dev-agent.md"
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/commands/coordinator-tick.md" "$DOWNSTREAM_ROOT/.claude/commands/coordinator-tick.md" ".claude/commands/coordinator-tick.md"
+_copy_if_missing "${JAK_SKILL_ROOT}/templates/plans/plan-template.md"   "$DOWNSTREAM_ROOT/plans/_template.md"               "plans/_template.md"
+
+# Coordinator scripts (tick.sh, dispatch.sh, lib.sh, check-plan.sh).
+# Idempotent — never overwrite, per the bootstrap.sh contract. To refresh on
+# an update, delete the specific file first then re-run install.sh.
+for s in tick.sh dispatch.sh lib.sh check-plan.sh; do
+  src="${JAK_SKILL_ROOT}/scripts/coordinator/${s}"
+  dst="$DOWNSTREAM_ROOT/scripts/coordinator/${s}"
+  if [ ! -f "$src" ]; then
+    PLAN0_ERRORS+=("MISSING source: $src")
+  elif [ -f "$dst" ]; then
+    echo "[Plan 0] ✓ scripts/coordinator/${s} already present (idempotent)"
+  else
+    cp "$src" "$dst"
+    chmod +x "$dst"
+    echo "[Plan 0] ✓ Installed scripts/coordinator/${s}"
+  fi
+done
+
+# (iv) Append gitignore additions (sentinel: avoid duplicate appends)
+GITIGNORE="$DOWNSTREAM_ROOT/.gitignore"
+GITIGNORE_TMPL="${JAK_SKILL_ROOT}/templates/gitignore-additions.txt"
+GITIGNORE_MARKER="# coordinator pipeline — agent state"
+if [ ! -f "$GITIGNORE_TMPL" ]; then
+  PLAN0_ERRORS+=("MISSING: $GITIGNORE_TMPL")
+elif [ -f "$GITIGNORE" ] && grep -qF "$GITIGNORE_MARKER" "$GITIGNORE"; then
+  echo "[Plan 0] ✓ .gitignore already has coordinator/jak-pipeline rules (idempotent)"
+else
+  if [ -f "$GITIGNORE" ]; then
+    # Make sure we don't double up; append a newline first if file doesn't end with one
+    [ -n "$(tail -c 1 "$GITIGNORE")" ] && printf '\n' >> "$GITIGNORE"
+  fi
+  cat "$GITIGNORE_TMPL" >> "$GITIGNORE"
+  echo "[Plan 0] ✓ Appended coordinator/jak-pipeline rules to .gitignore"
+fi
+
+if [ ${#PLAN0_ERRORS[@]} -gt 0 ]; then
+  echo "[Plan 0] ✗ Install errors:" >&2
+  for err in "${PLAN0_ERRORS[@]}"; do echo "  - $err" >&2; done
+  exit 1
+fi
+
+echo "[Plan 0] ✓ Plan 0 install complete"
+
+if [[ "$PLAN0_ONLY" == "1" ]]; then
+  exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Plan 1 — Mergify MCP server install
@@ -384,18 +509,8 @@ else
   fi
 fi
 
-# (v) Append agents/_label-log.jsonl to .gitignore (idempotent)
-GITIGNORE="${DOWNSTREAM_ROOT}/.gitignore"
-GITIGNORE_ENTRY="agents/_label-log.jsonl"
-if [ ! -f "$GITIGNORE" ]; then
-  echo "$GITIGNORE_ENTRY" > "$GITIGNORE"
-  echo "[Plan 2] ✓ Created .gitignore with $GITIGNORE_ENTRY"
-elif grep -qF "$GITIGNORE_ENTRY" "$GITIGNORE" 2>/dev/null; then
-  echo "[Plan 2] ✓ .gitignore already contains $GITIGNORE_ENTRY (idempotent)"
-else
-  echo "$GITIGNORE_ENTRY" >> "$GITIGNORE"
-  echo "[Plan 2] ✓ Added $GITIGNORE_ENTRY to .gitignore"
-fi
+# (v) agents/_label-log.jsonl is covered by the Plan 0 .gitignore template
+# (templates/gitignore-additions.txt) — no per-line append needed here.
 
 if [ ${#PLAN2_ERRORS[@]} -gt 0 ]; then
   echo "[Plan 2] ✗ Install errors:" >&2

@@ -17,15 +17,10 @@ function makeTempDir(): string {
 }
 
 function setupDownstream(tmpDir: string): void {
+  // Plan 0 now installs the coordinator scaffolding (tick.sh, planner.md, etc.)
+  // so we only seed an empty git repo here. Plan 2's pr-reviewer.md is still
+  // overlay-appended; that overlay is being replaced in PR-K.
   fs.mkdirSync(path.join(tmpDir, '.git', 'hooks'), { recursive: true });
-  fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
-  fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
-  fs.writeFileSync(
-    path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
-    '#!/usr/bin/env bash\nset -euo pipefail\necho "tick"\n',
-    { mode: 0o755 }
-  );
-  fs.writeFileSync(path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'), '# pr-reviewer\nStub.\n');
 }
 
 function runInstall(tmpDir: string): void {
@@ -97,19 +92,30 @@ describe('uninstall.sh', () => {
     expect(fs.existsSync(path.join(tmpDir, '.claude', 'jak-pipeline', 'config.env'))).toBe(false);
   });
 
-  it('restores pr-reviewer.md to pre-install state (strips overlay sentinel block)', () => {
+  it('removes tick.sh entirely (Plan 0 now owns it)', () => {
     runInstall(tmpDir);
+    // Sanity: install created the file
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'))).toBe(true);
+
     runUninstall(tmpDir);
-    const content = fs.readFileSync(path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'), 'utf8');
-    expect(content).toBe('# pr-reviewer\nStub.\n');
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'))).toBe(false);
+    // scripts/coordinator/ dir removed if empty
+    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator'))).toBe(false);
   });
 
-  it('strips the jak_pipeline_jira_tick_pass block from tick.sh', () => {
+  it('strips the coordinator/jak-pipeline gitignore block (preserves pre-existing user entries)', () => {
+    fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n.env\n');
     runInstall(tmpDir);
+
+    let gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
+    expect(gi).toMatch(/coordinator pipeline.*agent state/i);
+
     runUninstall(tmpDir);
-    const content = fs.readFileSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'), 'utf8');
-    expect(content).not.toContain('jak_pipeline_jira_tick_pass');
-    expect(content).toContain('echo "tick"');
+
+    gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
+    expect(gi).not.toMatch(/coordinator pipeline/i);
+    expect(gi).toContain('node_modules/');
+    expect(gi).toContain('.env');
   });
 
   it('strips the pre-commit and pre-push hook lines (sentinel blocks)', () => {
@@ -201,11 +207,32 @@ describe('uninstall.sh', () => {
   });
 
   it('runs cleanly on a fresh downstream with nothing installed (idempotent)', () => {
+    // Pre-seed a user file that jak-pipeline does not own
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.claude', 'agents', 'my-user-agent.md'), '# user-owned\n');
+
     // Do NOT install. Just uninstall.
     const r = runUninstall(tmpDir);
     expect(r.status).toBe(0);
-    // Pre-existing files preserved
-    expect(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'))).toBe(true);
+
+    // User-owned file untouched
+    expect(fs.existsSync(path.join(tmpDir, '.claude', 'agents', 'my-user-agent.md'))).toBe(true);
+  });
+
+  it('strips the existing-overlay sentinel block from pr-reviewer.md if a downstream had one (legacy path)', () => {
+    // Even though Plan 2 now skips when pr-reviewer.md is missing, an
+    // upgrading downstream may still have the legacy overlay. Verify it
+    // gets cleaned up.
+    fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
+    const pr = path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md');
+    fs.writeFileSync(pr,
+      '# pr-reviewer\nMy content.\n\n<!-- jak-pipeline:pr-reviewer-label-gate v1 -->\n\nstale overlay\n'
+    );
+
+    runUninstall(tmpDir);
+
+    const content = fs.readFileSync(pr, 'utf8');
+    expect(content).not.toContain('jak-pipeline:pr-reviewer-label-gate');
+    expect(content).toContain('My content.');
   });
 });

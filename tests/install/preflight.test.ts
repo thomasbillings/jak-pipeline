@@ -57,42 +57,12 @@ describe('install.sh — pre-flight section', () => {
     expect(result.stderr).toMatch(/not a git repository/);
   });
 
-  it('aborts when coordinator-pipeline tick.sh is missing', async () => {
+  // Coordinator-pipeline is no longer a prerequisite — Plan 0 installs it.
+  // Pre-flight no longer checks for tick.sh or pr-reviewer.md.
+
+  it('passes pre-flight when downstream is a git repo (only hard requirement now)', async () => {
     fs.mkdirSync(path.join(tmpDir, '.git'), { recursive: true });
     const result = await runInstall(tmpDir);
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/coordinator-pipeline not detected/);
-  });
-
-  it('warns (does not abort) when .claude/agents/pr-reviewer.md is missing', async () => {
-    fs.mkdirSync(path.join(tmpDir, '.git'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
-    fs.writeFileSync(
-      path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
-      '#!/usr/bin/env bash\necho "tick"\n',
-      { mode: 0o755 }
-    );
-
-    const result = await runInstall(tmpDir);
-    // Plan 1 runs (and may fail later on its own), but pre-flight passes
-    expect(result.stderr).toMatch(/pr-reviewer\.md not present/);
-    // The warning shouldn't trigger an abort (no "Hard checks failed")
-    expect(result.stderr).not.toMatch(/Hard checks failed/);
-  });
-
-  it('passes pre-flight when downstream is fully set up', async () => {
-    fs.mkdirSync(path.join(tmpDir, '.git'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, '.claude', 'agents'), { recursive: true });
-    fs.writeFileSync(
-      path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh'),
-      '#!/usr/bin/env bash\necho "tick"\n',
-      { mode: 0o755 }
-    );
-    fs.writeFileSync(path.join(tmpDir, '.claude', 'agents', 'pr-reviewer.md'), '# pr-reviewer\n');
-
-    const result = await runInstall(tmpDir);
-    // Pre-flight banner OK
     expect(result.stdout).toMatch(/Pre-flight.*All hard checks passed/);
   });
 
