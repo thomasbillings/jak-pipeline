@@ -75,9 +75,10 @@ Required CLIs on the install machine: `gh`, `python3`, `flock`, `node` ≥ 20, `
 Open follow-ups:
 
 - **First downstream install pending.** The installer is end-to-end functional but no downstream has been bootstrapped yet. The "first install on TnT Finance" deliverable from Plan 4 is the next concrete step.
-- **`main` is not branch-protected.** Lack of branch protection is what allowed PR #4 to be merged into a non-main base. Set up: require PR + require status checks (`top-level vitest`, `mcp/mergify vitest + build`). One-time operational change.
 - **`agents/_cost-report.md` (architecture §12 deliverable)** — Mergify queue actions + Anthropic spend per merged PR. Flagged at Plan 4 but never assigned a plan.
 - **Failure-escalation transport (architecture §12 deliverable)** — silent handoffs >10 min fire a notification (ntfy vs Slack vs both). Needs a new plan.
+
+Branch protection on `main` is configured (2026-05-14): required status checks (`top-level vitest`, `mcp/mergify vitest + build`) must pass with strict (up-to-date branch) enforcement; `enforce_admins: true`; force pushes and deletion disallowed; PR conversation resolution required. No human-approval requirement set (solo maintainer + Claude workflow would block self-merges).
 
 A full audit on 2026-05-13 surfaced 9 install-side gaps (Plan 1 install wiring, Plan 4 install wiring, pre-flight checks, label-log N/A crash, token-prefix gaps, scaffold-only uninstall, missing slash commands, no CI workflow, PR #6 runbook bugs). All 9 closed via PRs #7–#16 (2026-05-13/14). Coordinator-pipeline absorbed via PR-J and pr-reviewer agent shipped via PR-K (2026-05-14).
 
