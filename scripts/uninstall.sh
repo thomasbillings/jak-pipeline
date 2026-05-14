@@ -101,6 +101,61 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# Plan 0 — Coordinator pipeline scaffolding
+# -----------------------------------------------------------------------------
+_log "[Plan 0] Removing coordinator-pipeline scaffolding"
+
+# Agent files
+_rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/planner.md" ".claude/agents/planner.md"
+_rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/plan-reviewer.md" ".claude/agents/plan-reviewer.md"
+_rm_if_exists "$DOWNSTREAM_ROOT/.claude/agents/dev-agent.md" ".claude/agents/dev-agent.md"
+_rm_if_exists "$DOWNSTREAM_ROOT/.claude/commands/coordinator-tick.md" ".claude/commands/coordinator-tick.md"
+
+# Coordinator scripts
+for s in tick.sh dispatch.sh lib.sh check-plan.sh; do
+  _rm_if_exists "$DOWNSTREAM_ROOT/scripts/coordinator/$s" "scripts/coordinator/$s"
+done
+if [ -d "$DOWNSTREAM_ROOT/scripts/coordinator" ]; then
+  rmdir "$DOWNSTREAM_ROOT/scripts/coordinator" 2>/dev/null || true
+fi
+
+# Plan template (user-written plans under plans/ are PRESERVED)
+_rm_if_exists "$DOWNSTREAM_ROOT/plans/_template.md" "plans/_template.md"
+
+# Pipeline config
+_rm_if_exists "$DOWNSTREAM_ROOT/.coordinator-pipeline.json" ".coordinator-pipeline.json"
+
+# Strip the entire jak-pipeline gitignore block via the leading marker comment
+# (the template starts with "# coordinator pipeline — agent state…").
+GITIGNORE="$DOWNSTREAM_ROOT/.gitignore"
+GITIGNORE_MARKER="# coordinator pipeline — agent state"
+if [ -f "$GITIGNORE" ] && grep -qF "$GITIGNORE_MARKER" "$GITIGNORE"; then
+  if [[ "$DRY_RUN" == "1" ]]; then
+    _log "[dry-run] would strip the coordinator/jak-pipeline gitignore block from .gitignore"
+  else
+    tmp=$(mktemp)
+    python3 - "$GITIGNORE" "$tmp" <<'PYEOF'
+import sys, pathlib
+src, dst = sys.argv[1], sys.argv[2]
+text = pathlib.Path(src).read_text()
+marker = "# coordinator pipeline — agent state"
+idx = text.find(marker)
+if idx == -1:
+    pathlib.Path(dst).write_text(text)
+else:
+    # Walk back over a preceding blank line (install adds one)
+    line_start = text.rfind('\n', 0, idx) + 1
+    if line_start >= 2 and text[line_start-2] == '\n':
+        line_start -= 1
+    # Strip everything from marker to EOF (the install template was appended last)
+    pathlib.Path(dst).write_text(text[:line_start])
+PYEOF
+    mv "$tmp" "$GITIGNORE"
+    _log "  stripped coordinator/jak-pipeline block from .gitignore"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 # Plan 1 — MCP server
 # -----------------------------------------------------------------------------
 _log "[Plan 1] Removing MCP server install"
@@ -162,8 +217,9 @@ fi
 _remove_sentinel_block "$DOWNSTREAM_ROOT/.husky/pre-push" "# jak-pipeline branch-ticket-check" ".husky/pre-push"
 _remove_sentinel_block "$DOWNSTREAM_ROOT/.git/hooks/pre-push" "# jak-pipeline branch-ticket-check" ".git/hooks/pre-push"
 
-# Remove agents/_label-log.jsonl from .gitignore (the entry, not the log file)
-_remove_line "$DOWNSTREAM_ROOT/.gitignore" '^agents/_label-log\.jsonl$'
+# agents/_label-log.jsonl gitignore line is part of the Plan 0 gitignore block
+# (templates/gitignore-additions.txt) — stripped wholesale during Plan 0
+# uninstall above; no per-line surgery needed here.
 
 # -----------------------------------------------------------------------------
 # Plan 3 — Jira integration
