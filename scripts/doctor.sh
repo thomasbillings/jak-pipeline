@@ -489,6 +489,20 @@ if [[ "$PLAN4_CHECK" == "1" ]]; then
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# Install state manifest (used by update.sh to detect locally-modified files)
+# ---------------------------------------------------------------------------
+STATE_JSON="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/install-manifest.json"
+if [[ ! -f "$STATE_JSON" ]]; then
+  echo "[update] CONFIGURABLE: no install-manifest.json found — this install"
+  echo "[update]   predates the manifest. Run 'bash scripts/update.sh' from the"
+  echo "[update]   jak-pipeline skill root against this project to bootstrap one"
+  echo "[update]   (it will record current file hashes and let future update.sh"
+  echo "[update]   runs detect locally-modified vs upstream-changed files)."
+else
+  echo "[update] ✓ install-manifest.json present"
+fi
+
 if $PLAN1_PASS && $PLAN2_PASS && $PLAN3_PASS && $PLAN4_PASS; then
   exit 0
 else

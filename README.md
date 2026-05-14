@@ -29,6 +29,15 @@ The script is idempotent — second run reports `already present` for every step
 DOWNSTREAM_ROOT=$(pwd) bash $JAK_SKILL_ROOT/scripts/doctor.sh
 ```
 
+To pull upstream fixes to the skill-owned scripts (which `install.sh` won't touch on re-runs by design), run the refresher:
+
+```bash
+JAK_DOWNSTREAM_ROOT=$(pwd) bash $JAK_SKILL_ROOT/scripts/update.sh            # apply
+JAK_DOWNSTREAM_ROOT=$(pwd) bash $JAK_SKILL_ROOT/scripts/update.sh --dry-run  # preview
+```
+
+`update.sh` reads `templates/install-manifest.tsv` for the list of skill-owned files, backs up locally-modified copies to `<path>.bak`, and preserves `tick.sh`'s install-time Jira hook. See [`SKILL.md`](SKILL.md#updating-an-existing-install) for full semantics.
+
 ## Repository layout
 
 | Path | Purpose |
