@@ -1,0 +1,38 @@
+# jak-pipeline install manifest
+#
+# Source of truth for which files install.sh ships into a downstream and how
+# update.sh treats them on refresh.
+#
+# Format: <src_path> TAB <dst_path> TAB <category>
+#   src_path  — path inside the jak-pipeline skill repo (relative to JAK_SKILL_ROOT)
+#   dst_path  — path inside the downstream project (relative to DOWNSTREAM_ROOT)
+#   category  — one of:
+#                 skill         — always refresh from upstream; back up locally-modified
+#                                 copies to <path>.bak
+#                 skill-append  — refresh from upstream, then re-apply install.sh's
+#                                 managed append (currently only tick.sh's Jira hook)
+#
+# v1 scope: scripts only. Customisable files (.claude/agents/*.md, .mergify.yml,
+# docker-compose.local-uat.yml) and MCP server bundle remain managed by install.sh's
+# existing never-overwrite logic. Lines starting with '#' are comments.
+#
+# Empty lines and lines starting with '#' are ignored.
+scripts/scrum-master/tick.sh	scripts/scrum-master/tick.sh	skill-append
+scripts/scrum-master/dispatch.sh	scripts/scrum-master/dispatch.sh	skill
+scripts/scrum-master/lib.sh	scripts/scrum-master/lib.sh	skill
+scripts/scrum-master/check-plan.sh	scripts/scrum-master/check-plan.sh	skill
+scripts/scrum-master/scrum-master	scripts/scrum-master/scrum-master	skill
+scripts/branch-ticket-check.sh	.claude/jak-pipeline/scripts/branch-ticket-check.sh	skill
+scripts/label-gate-decide.sh	.claude/jak-pipeline/scripts/label-gate-decide.sh	skill
+scripts/label-log-append.sh	.claude/jak-pipeline/scripts/label-log-append.sh	skill
+scripts/doctor.sh	scripts/jak-pipeline/doctor.sh	skill
+scripts/jira/transition.sh	scripts/jak-pipeline/jira/transition.sh	skill
+scripts/jira/provision-board.sh	scripts/jak-pipeline/jira/provision-board.sh	skill
+scripts/jira/drain-retry-queue.sh	scripts/jak-pipeline/jira/drain-retry-queue.sh	skill
+scripts/jira/tick-extension.sh	scripts/jak-pipeline/jira/tick-extension.sh	skill
+scripts/jira/lib/kanban-order.sh	scripts/jak-pipeline/jira/lib/kanban-order.sh	skill
+scripts/uat/run.sh	scripts/jak-pipeline/uat/run.sh	skill
+scripts/uat/local-docker-start.sh	scripts/jak-pipeline/uat/local-docker-start.sh	skill
+scripts/uat/local-docker-stop.sh	scripts/jak-pipeline/uat/local-docker-stop.sh	skill
+scripts/uat/local-docker-accept.sh	scripts/jak-pipeline/uat/local-docker-accept.sh	skill
+scripts/uat/local-docker-reject.sh	scripts/jak-pipeline/uat/local-docker-reject.sh	skill

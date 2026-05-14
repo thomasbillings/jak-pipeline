@@ -789,4 +789,72 @@ fi
 
 echo "[Plan 4] ✓ Plan 4 install complete"
 
+# ---------------------------------------------------------------------------
+# Final step — write the install state manifest so update.sh can detect
+# locally-modified files on future refresh runs.
+#
+# The TSV at templates/install-manifest.tsv enumerates skill-owned files;
+# this block records each file's hash plus the upstream HEAD SHA. update.sh
+# reads this to distinguish "user customised X" from "X has changed upstream
+# since install". Idempotent — overwrites any prior state file.
+# ---------------------------------------------------------------------------
+MANIFEST_TSV="${JAK_SKILL_ROOT}/templates/install-manifest.tsv"
+STATE_JSON="${DOWNSTREAM_ROOT}/.claude/jak-pipeline/install-manifest.json"
+
+if [ -f "$MANIFEST_TSV" ]; then
+  mkdir -p "$(dirname "$STATE_JSON")"
+  python3 - "$JAK_SKILL_ROOT" "$DOWNSTREAM_ROOT" "$MANIFEST_TSV" "$STATE_JSON" <<'PY'
+import sys, json, hashlib, os, subprocess
+skill_root, downstream_root, manifest_tsv, state_json = sys.argv[1:5]
+
+def sha256_file(path):
+    if not os.path.exists(path):
+        return ""
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+rows = []
+with open(manifest_tsv) as f:
+    for line in f:
+        line = line.rstrip('\n')
+        if not line or line.startswith('#') or line.startswith('src_path'):
+            continue
+        parts = line.split('\t')
+        if len(parts) < 3:
+            continue
+        rows.append((parts[0], parts[1], parts[2]))
+
+try:
+    upstream_sha = subprocess.check_output(
+        ['git', '-C', skill_root, 'rev-parse', 'HEAD'],
+        stderr=subprocess.DEVNULL,
+    ).decode().strip()
+except Exception:
+    upstream_sha = ''
+
+files = {}
+for src, dst, cat in rows:
+    abs_dst = os.path.join(downstream_root, dst)
+    files[dst] = {
+        'installed_hash': sha256_file(abs_dst),
+        'category': cat,
+        'src': src,
+    }
+
+state = {
+    'schema_version': 1,
+    'upstream_sha': upstream_sha,
+    'updated_at': subprocess.check_output(['date', '-u', '+%Y-%m-%dT%H:%M:%SZ']).decode().strip(),
+    'files': files,
+}
+with open(state_json, 'w') as f:
+    json.dump(state, f, indent=2)
+    f.write('\n')
+PY
+  echo "[install-manifest] ✓ Wrote state manifest → .claude/jak-pipeline/install-manifest.json"
+fi
+
 exit 0

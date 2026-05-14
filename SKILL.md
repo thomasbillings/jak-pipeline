@@ -62,7 +62,7 @@ Required CLIs on the install machine: `gh`, `python3`, `flock`, `node` ≥ 20, `
 
 ## Status
 
-**Plans 0–4 delivered + scrum-master-pipeline absorbed.** `scripts/install.sh` runs end-to-end against a target project; `scripts/doctor.sh` validates the install. First-time installs and idempotent re-runs both exit 0.
+**Plans 0–4 delivered + scrum-master-pipeline absorbed.** `scripts/install.sh` runs end-to-end against a target project; `scripts/doctor.sh` validates the install. First-time installs and idempotent re-runs both exit 0. To pull skill-owned script fixes into an existing install without re-running install.sh (which never overwrites), run `scripts/update.sh` — see "Updating an existing install" below.
 
 | Plan       | Scope                                                                                                                         | Status                  |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
@@ -81,6 +81,21 @@ Open follow-ups:
 Branch protection on `main` is configured (2026-05-14): required status checks (`top-level vitest`, `mcp/mergify vitest + build`) must pass with strict (up-to-date branch) enforcement; `enforce_admins: true`; force pushes and deletion disallowed; PR conversation resolution required. No human-approval requirement set (solo maintainer + Claude workflow would block self-merges).
 
 A full audit on 2026-05-13 surfaced 9 install-side gaps (Plan 1 install wiring, Plan 4 install wiring, pre-flight checks, label-log N/A crash, token-prefix gaps, scaffold-only uninstall, missing slash commands, no CI workflow, PR #6 runbook bugs). All 9 closed via PRs #7–#16 (2026-05-13/14). Scrum Master-pipeline absorbed via PR-J and pr-reviewer agent shipped via PR-K (2026-05-14).
+
+## Updating an existing install
+
+`install.sh` is intentionally never-overwrite: it preserves user customisations on `.claude/agents/*.md`, `.mergify.yml`, `.env` files, etc. The downside is that upstream fixes to skill-owned scripts (`scripts/scrum-master/*.sh`, `scripts/jak-pipeline/jira/*`, `doctor.sh`, etc.) don't propagate to an existing install when you re-run install.sh.
+
+`scripts/update.sh` fills that gap. From the downstream project root:
+
+```bash
+JAK_DOWNSTREAM_ROOT=. bash $JAK_SKILL_ROOT/scripts/update.sh           # apply
+JAK_DOWNSTREAM_ROOT=. bash $JAK_SKILL_ROOT/scripts/update.sh --dry-run # preview
+```
+
+What it touches: the files in `templates/install-manifest.tsv` (currently 19 scripts). What it does not touch: anything else — agent .md files, `.mergify.yml`, MCP bundle, `.env` files, `.scrum-master.json`. The first run bootstraps `.claude/jak-pipeline/install-manifest.json` (hash + upstream SHA snapshot); subsequent runs use it to distinguish "user customised X" from "X is just old upstream content". Locally-modified files are backed up to `<path>.bak` before refresh. The `skill-append` category preserves `tick.sh`'s install-time Jira hook across refreshes.
+
+v1 scope is scripts only. Customisable templates and the MCP bundle remain managed by install.sh's existing copy-if-missing logic.
 
 ## References
 
