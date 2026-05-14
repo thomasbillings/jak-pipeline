@@ -15,8 +15,12 @@
 # match any 'agents/' subdirectory anywhere in the tree.
 /agents/_label-log.jsonl
 
-# jak-pipeline — Jira retry queue (Plan 3)
+# jak-pipeline — Jira drift reconciliation cache (Plan 3, tick-extension.sh)
+/agents/_jira-drift.json
+
+# jak-pipeline — Jira retry queue + its flock (Plan 3, transition.sh)
 /agents/_jira-retry.json
+/agents/_jira-retry.lock
 
 # jak-pipeline — local Plan 4 UAT config (no secrets here; CF_API_TOKEN is a GitHub Actions secret)
 /.claude/jak-pipeline/config.env
