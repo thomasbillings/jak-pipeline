@@ -6,14 +6,14 @@ A reusable [Claude Code skill](https://claude.com/claude-code) that wires a Jira
 
 ## What it installs
 
-- **Mergify MCP server** *(in-repo, install-side wiring pending — see SKILL.md follow-ups)* — TypeScript stdio server in `mcp/mergify/` exposing 6 role-gated queue-inspection tools (`mergify_get_queue_summary`, `mergify_check_pr_eligibility`, etc.) to Claude agents. Redaction wrapper strips token prefixes from every error envelope; env-leak guard refuses to start if credentials are inside the repo.
+- **Mergify MCP server** — TypeScript stdio server exposing 6 role-gated queue-inspection tools (`mergify_get_queue_summary`, `mergify_check_pr_eligibility`, etc.) to Claude agents. Redaction wrapper strips 9 token prefixes from every error envelope; env-leak guard refuses to start if credentials are inside the repo. Installed at `<downstream>/.claude/mcp/mergify/` and registered in `.mcp.json` automatically.
 - **Mergify config** — `.mergify.yml.tmpl` with 5 named queues (`bug`, `plan`, `feature`, `infra`, `design`), priorities, branch globs, and CI gates. Day 0 ships with every queue `disabled: true`; phased activation cookbook in `templates/phase-rollout-commits.md`.
 - **Label trust boundary** — `scripts/label-gate-decide.sh` enforces that only the `pr-reviewer` agent may apply `queue:*` labels, and only after BLOCKERs=0 + tests-green. Every decision is appended to `agents/_label-log.jsonl`.
 - **Jira integration** — idempotent transition helper (`scripts/jira/transition.sh`), drift reconciliation pass that hooks into `tick.sh`, retry queue at `agents/_jira-retry.json`. Jira outages never block a Mergify merge.
-- **UAT gate** — pluggable strategy (`local-docker` / `vercel-preview` / `fly-staging` / `none`); local-docker overlay at `templates/uat/local-docker/docker-compose.uat.yml` *(install copies the overlay; the four lifecycle scripts in `scripts/uat/` are install-side TODO — see SKILL.md follow-ups)*.
-- **Storybook preview** — per-PR deploy to Cloudflare Pages via `templates/github-actions/storybook-preview.yml`; draft-skip rule and `--only-changed` build.
+- **UAT gate** — pluggable strategy (`local-docker` / `vercel-preview` / `fly-staging` / `none`); installs the Compose overlay, the 5 lifecycle scripts (`run.sh` + four `local-docker-*.sh`), and the Storybook preview workflow into the downstream.
+- **Slash commands** — `/jak install`, `/jak doctor`, `/jak uninstall` delegate to the corresponding scripts.
 
-> **State of the install:** Plans 0–4 are merged. The bash install script wires up the Mergify config, label-trust boundary, Jira integration, UAT overlay, and Storybook workflow today. The MCP server and the UAT lifecycle scripts are present and tested in this repo but **not yet auto-copied into a downstream** — see [`SKILL.md` Open follow-ups](SKILL.md#status) for the PR sequence that closes those gaps.
+> **State of the install:** Plans 0–4 are merged and the installer is end-to-end functional. The first downstream bootstrap (the original "first install on TnT Finance" deliverable) is the only remaining concrete work. See [`SKILL.md` Open follow-ups](SKILL.md#status) for the operational follow-ups (downstream install, branch protection on this repo's `main`).
 
 ## Quick start
 

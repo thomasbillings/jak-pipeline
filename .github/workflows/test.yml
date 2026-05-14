@@ -33,15 +33,10 @@ jobs:
       - name: Install PyYAML (for doctor.sh Plan 2 YAML parse check)
         run: pip install pyyaml
 
-      - name: Pre-build mcp/mergify (required by install.sh tests)
-        # Avoids a race when multiple test files invoke install.sh in parallel
-        # and each checks for dist/server.js — only the first wins the build.
-        working-directory: mcp/mergify
-        run: |
-          npm ci
-          npm run build
-
       - name: Run vitest
+        # Vitest's globalSetup (tests/_global-setup.ts) builds mcp/mergify/dist
+        # once before tests start, eliminating the install-script parallel-build
+        # race without needing a separate workflow step.
         run: npx vitest run
 
   mcp-server:
