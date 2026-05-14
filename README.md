@@ -37,23 +37,26 @@ DOWNSTREAM_ROOT=$(pwd) bash $JAK_SKILL_ROOT/scripts/doctor.sh
 | [`references/architecture.md`](references/architecture.md) | Authoritative architecture: 5 queues, 6 MCP tools, branch-ticket regex, idempotency contract, UAT strategies |
 | [`references/kanban-states.md`](references/kanban-states.md) | 12-state machine + Mermaid `stateDiagram-v2` |
 | [`references/recovery-runbooks.md`](references/recovery-runbooks.md) | 5 incident runbooks (queue stuck, Jira drift, MCP creds, UAT rollback, phase rollback) |
-| [`mcp/mergify/`](mcp/mergify/) | Mergify MCP server source + 81 unit tests |
+| [`mcp/mergify/`](mcp/mergify/) | Mergify MCP server source + 87 unit tests |
 | [`scripts/`](scripts/) | Install / doctor / lifecycle scripts (`install.sh`, `doctor.sh`, `jira/`, `uat/`) |
 | [`templates/`](templates/) | Templates copied into the downstream by `install.sh` |
-| [`tests/`](tests/) | Skill-side tests (136 vitest tests across 24 files) |
+| [`tests/`](tests/) | Skill-side tests (201 vitest tests across 32 files) |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branch naming, test requirements, PR conventions |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability disclosure policy |
+| [`LICENSE`](LICENSE) | MIT |
 
 ## Tests
 
 ```bash
 npm ci                          # top-level dev deps
-npx vitest run                  # 136 tests, 24 files
+npx vitest run                  # 201 tests, 32 files
 
 cd mcp/mergify
 npm ci                          # MCP server deps
-npx vitest run                  # 81 tests, 9 files
+npx vitest run                  # 87 tests, 9 files
 npm run build                   # emits dist/server.js
 ```
 
 ## Status
 
-Plans 0–4 are delivered. See the SKILL.md status table for the per-plan PR links and the list of open follow-ups (notably: install-side Plan 1 wiring is a TODO, no CI workflow on this repo, first downstream install pending).
+Plans 0–4 are delivered + coordinator-pipeline absorbed + pr-reviewer agent shipped. See [`SKILL.md`](SKILL.md) for the status table and remaining operational follow-ups (first downstream install, the two §12 known-deferred items). The repo's security posture (LICENSE, SECURITY.md, branch protection, Dependabot, CodeQL, CODEOWNERS, pinned Actions, least-privilege workflow tokens) is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md).

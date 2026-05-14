@@ -6,20 +6,31 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege GITHUB_TOKEN — read-only access is all the test workflow
+# needs. If a future job legitimately requires write access (eg. posting
+# coverage comments on a PR), add a job-scoped `permissions:` block; do NOT
+# loosen this top-level default.
+permissions:
+  contents: read
+
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# GitHub Actions are pinned to commit SHAs (not floating tags) to defend
+# against supply-chain attacks via compromised tags. Dependabot
+# (.github/dependabot.yml) opens PRs to bump these in tandem with the
+# version comment.
 jobs:
   top-level:
     name: top-level vitest
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -44,10 +55,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
