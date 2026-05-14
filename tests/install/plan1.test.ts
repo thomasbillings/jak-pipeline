@@ -139,15 +139,34 @@ describe('install.sh — Plan 1 section', () => {
     expect(matches).toBe(1);
   });
 
-  it('copies scripts/hooks/pre-commit into <downstream>/scripts/hooks/ so the dispatcher resolves', async () => {
+  it('inlines the token-prefix scan body directly into .git/hooks/pre-commit (no separate scripts/hooks dependency)', async () => {
+    // Previously install.sh copied scripts/hooks/pre-commit into the downstream
+    // and wrote a .git/hooks/pre-commit shim that dispatched via
+    // `bash $(git rev-parse --show-toplevel)/scripts/hooks/pre-commit`. That
+    // path-resolution broke `git worktree add` for any downstream that didn't
+    // commit scripts/hooks/pre-commit — from inside the worktree, the path
+    // resolved to a non-existent file. Issue #46 / this PR.
+    //
+    // The fix inlines the scan body. Verify both: (a) the scan body is in the
+    // installed hook itself, and (b) no separate <downstream>/scripts/hooks/
+    // file is created any more (it would be dead weight and a misleading
+    // edit-target for users who don't realize the hook no longer reads it).
     fs.mkdirSync(path.join(tmpDir, '.git', 'hooks'), { recursive: true });
 
     await runInstall(tmpDir);
 
+    const hook = path.join(tmpDir, '.git', 'hooks', 'pre-commit');
+    expect(fs.existsSync(hook)).toBe(true);
+    const content = fs.readFileSync(hook, 'utf8');
+    // Body markers: the regex pattern, the BLOCKED message.
+    expect(content).toMatch(/mrg_live_/);
+    expect(content).toMatch(/github_pat_/);
+    expect(content).toMatch(/\[pre-commit\] BLOCKED/);
+    expect(content).not.toMatch(/scripts\/hooks\/pre-commit/);
+
+    // No separate dispatcher file in downstream
     const hookSrc = path.join(tmpDir, 'scripts', 'hooks', 'pre-commit');
-    expect(fs.existsSync(hookSrc)).toBe(true);
-    const stat = fs.statSync(hookSrc);
-    expect(stat.mode & 0o111).not.toBe(0);
+    expect(fs.existsSync(hookSrc)).toBe(false);
   });
 
   it('is idempotent — second run preserves user .env and re-registers mergify cleanly', async () => {
