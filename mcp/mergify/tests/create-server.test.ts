@@ -13,12 +13,16 @@ const mockServer = {
   connect: vi.fn().mockResolvedValue(undefined),
 };
 
+// vitest 4 changed how vi.fn() mocks behave under `new` — arrow-function
+// implementations no longer satisfy the constructor contract. Use `function`
+// expressions (which carry [[Construct]]) instead. Backwards-compatible with
+// vitest 2.
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
-  McpServer: vi.fn().mockImplementation(() => mockServer),
+  McpServer: vi.fn().mockImplementation(function () { return mockServer; }),
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
-  StdioServerTransport: vi.fn().mockImplementation(() => ({})),
+  StdioServerTransport: vi.fn().mockImplementation(function () { return {}; }),
 }));
 
 vi.mock('../src/mergify-client.js', () => ({
