@@ -341,12 +341,47 @@ PYEOF
 echo "[Plan 1] ✓ Registered 'mergify' MCP server in ${MCP_JSON}"
 
 # (vii) Install pre-commit token-prefix hook
-PRE_COMMIT_SRC="${JAK_SKILL_ROOT}/scripts/hooks/pre-commit"
+#
+# Earlier versions of this section dispatched from .git/hooks/pre-commit
+# (or .husky/pre-commit) to a separate `<downstream>/scripts/hooks/pre-commit`
+# file. That path-resolution dance broke `git worktree add`: from inside a
+# worktree, `git rev-parse --show-toplevel` returns the worktree path, and
+# the dispatched script doesn't exist there unless scripts/hooks/pre-commit
+# was committed to the repo (which install.sh writes but does not commit).
+# Result: every coordinator-pipeline dev-agent dispatched into a fresh
+# worktree hit a hook-resolution failure at commit time.
+#
+# Fix: inline the scan body. Hook is self-contained and path-independent.
+# The standalone scripts/hooks/pre-commit file remains in the skill source
+# as the human-readable source of truth — install.sh's heredoc body MUST
+# stay in sync with that file (see test: tests/install/plan1.test.ts).
 PRE_COMMIT_SENTINEL="# jak-pipeline pre-commit token-prefix scan"
+# Heredoc-quoted body — the hook is the same on .husky and .git/hooks paths.
+# Keep in sync with scripts/hooks/pre-commit (source of truth for humans).
+read -r -d '' PRE_COMMIT_BODY <<'PCEOF' || true
+set -euo pipefail
 
-if [ ! -f "${PRE_COMMIT_SRC}" ]; then
-  PLAN1_ERRORS+=("MISSING: ${PRE_COMMIT_SRC}")
-elif [ -d "${DOWNSTREAM_ROOT}/.husky" ]; then
+# Token patterns:
+# - GitHub: classic PAT (ghp_), Actions session (ghs_), refresh (ghr_),
+#   OAuth user-to-server (gho_), user-to-server new style (ghu_),
+#   enterprise server (ghe_), fine-grained PAT (github_pat_)
+# - Mergify: production (mrg_live_), staging (mrg_test_)
+PATTERNS='(gh[psroue]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|mrg_live_[A-Za-z0-9]+|mrg_test_[A-Za-z0-9]+)'
+
+MATCHES=$(git diff --cached --unified=0 | grep '^+' | grep -E "$PATTERNS" || true)
+
+if [ -n "$MATCHES" ]; then
+  echo "[pre-commit] BLOCKED: staged content contains token prefix(es):" >&2
+  echo "$MATCHES" >&2
+  echo "" >&2
+  echo "Remove the token(s) before committing." >&2
+  exit 1
+fi
+
+exit 0
+PCEOF
+
+if [ -d "${DOWNSTREAM_ROOT}/.husky" ]; then
   PC_DEST="${DOWNSTREAM_ROOT}/.husky/pre-commit"
   if grep -qF "${PRE_COMMIT_SENTINEL}" "${PC_DEST}" 2>/dev/null; then
     echo "[Plan 1] ✓ pre-commit hook already installed in .husky (idempotent)"
@@ -358,10 +393,10 @@ elif [ -d "${DOWNSTREAM_ROOT}/.husky" ]; then
     {
       echo ""
       echo "${PRE_COMMIT_SENTINEL}"
-      echo "bash \"\$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit\""
+      echo "${PRE_COMMIT_BODY}"
     } >> "${PC_DEST}"
     chmod +x "${PC_DEST}"
-    echo "[Plan 1] ✓ Installed pre-commit hook into .husky/pre-commit"
+    echo "[Plan 1] ✓ Installed pre-commit hook into .husky/pre-commit (inlined body, no external file dependency)"
   fi
 else
   PC_DEST="${DOWNSTREAM_ROOT}/.git/hooks/pre-commit"
@@ -369,20 +404,16 @@ else
   if [ -f "${PC_DEST}" ] && grep -qF "${PRE_COMMIT_SENTINEL}" "${PC_DEST}" 2>/dev/null; then
     echo "[Plan 1] ✓ pre-commit hook already installed (idempotent)"
   else
-    # Copy the hook source into the project's scripts/hooks/ (downstream-owned) and dispatch via .git/hooks
-    mkdir -p "${DOWNSTREAM_ROOT}/scripts/hooks"
-    cp "${PRE_COMMIT_SRC}" "${DOWNSTREAM_ROOT}/scripts/hooks/pre-commit"
-    chmod +x "${DOWNSTREAM_ROOT}/scripts/hooks/pre-commit"
     if [ ! -f "${PC_DEST}" ]; then
       echo "#!/usr/bin/env bash" > "${PC_DEST}"
     fi
     {
       echo ""
       echo "${PRE_COMMIT_SENTINEL}"
-      echo "bash \"\$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit\""
+      echo "${PRE_COMMIT_BODY}"
     } >> "${PC_DEST}"
     chmod +x "${PC_DEST}"
-    echo "[Plan 1] ✓ Installed pre-commit hook into .git/hooks/pre-commit"
+    echo "[Plan 1] ✓ Installed pre-commit hook into .git/hooks/pre-commit (inlined body, no external file dependency)"
   fi
 fi
 
