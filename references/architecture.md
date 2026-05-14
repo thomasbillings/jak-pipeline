@@ -202,23 +202,32 @@ The pipeline produces four artefacts the Owner consults regularly.
 
 ## 13. Open items (decisions deferred to downstream plans)
 
-The 5-plan delivery sequence (Plans 0-4) is mechanically complete (all plans merged), but a post-delivery audit on 2026-05-13 found install-side gaps where the code does not match what this document and `SKILL.md` claim. Those gaps are itemised below alongside the original known-deferred items. SKILL.md's "Open follow-ups" section tracks them under PR-slugs.
+The 5-plan delivery sequence (Plans 0-4) is complete. A 2026-05-13 audit surfaced 9 install-side and security gaps; all 9 were closed via PRs #7–#15 (2026-05-13 → 2026-05-14). The remaining open items are listed below.
 
 | Open item                                            | Status                  |
 | ---------------------------------------------------- | ----------------------- |
-| Plan 1 install-side wiring — `install.sh` does not copy the MCP server into `<downstream>/.claude/mcp/mergify/`, does not template the `.env`, does not install the pre-commit hook. The MCP server itself is fully built and tested under `mcp/mergify/`. | **Open — PR-B.** The original Plan 1 brief shipped the server but did not wire the installer. |
-| Plan 4 install-side wiring — `install.sh` does not copy the four UAT lifecycle scripts (`run.sh`, `local-docker-{start,stop,accept,reject}.sh`) into `<downstream>/scripts/jak-pipeline/uat/`. The Docker overlay and Storybook workflow are copied; the executables are not. | **Open — PR-C.** Runbook §4 cannot run as written until this lands. |
-| Pre-flight checks in `install.sh` — SKILL.md §1 step 1 describes a pre-flight pass that verifies `coordinator-pipeline`, branch protection, CLIs, and the Mergify GitHub App. None of those checks exist in the script today. | **Open — PR-D.** |
-| `label-log-append.sh` crashes on `blocker_count=N/A` — architecture §7 specifies `N/A` for user-applied labels; the writer uses `printf '%d'` which exits non-zero on non-numeric values. | **Open — PR-E.** Bug introduced by Plan 2. |
-| Token-prefix coverage gap — pre-commit hook and redaction wrapper cover `ghp_/ghs_/ghr_/github_pat_/mrg_live_/mrg_test_` but not newer GitHub formats (`gho_`, `ghu_`, `ghe_`). | **Open — PR-H.** |
-| `scripts/uninstall.sh` is a scaffold that exits 1. | **Open — PR-G.** User confirmed implementation should remove all installed files and never touch user-generated content under `agents/`. |
-| `/jak install`, `/jak doctor`, `/jak uninstall` slash commands — referenced by the Plan 4 brief but never shipped. | **Open — PR-I.** User confirmed implementation. |
-| No CI workflow on the repo — install-script test regressions on `main` went undetected for ~3 weeks. | **Open — PR-F.** |
-| Branch protection on `main` — currently absent. PR #4 was merged into a non-main base partly because of this. | **Open** — operational, not code. Will be set up once audit follow-ups are merged. |
-| Branch-ticket regex divergence — `branch-ticket-check.sh:13` enforces `(SCRUM-\d+\|GH-\d+)`; `tick-extension.sh:78` Python uses `[A-Z]+-\d+` (any uppercase project key). | Known divergence. Plan 3 implicitly widened the contract; choose one or document the asymmetry deliberately. |
-| `JIRA_PROJECT` is a dead environment variable — declared in `.env.example` and `transition.sh`, never read. | Cosmetic. Either remove or wire into transition.sh to constrain project scope. |
-| Cost-report owner and weekly cost report at `agents/_cost-report.md` | Known-deferred. The 5-plan sequence ends with the install (Plan 4); cost reporting was flagged as an Owner deliverable (§12) but not assigned to any plan. File a new plan to implement. |
-| Failure-escalation transport (ntfy vs Slack vs both) — any silent handoff >10 min fires a notification | Known-deferred. Transport choice was not made during the discovery panel; no plan in the 5-plan sequence picked it up. File a new plan to implement. |
+| First downstream install — Plans 0–4 are merged and the installer is end-to-end functional, but no downstream has actually been bootstrapped yet. | **Open** — was originally Plan 4's "first install on TnT Finance" deliverable. Now blocked only on choosing/preparing a downstream. |
+| Branch protection on `main` of this repo — currently absent. PR #4 was merged into a non-main base partly because of this. | **Open** — operational, not code. Set up: require PR, require status checks (`top-level vitest`, `mcp/mergify vitest + build`). |
+| Branch-ticket regex divergence — `scripts/branch-ticket-check.sh:13` enforces `(SCRUM-\d+\|GH-\d+)`; `scripts/jira/tick-extension.sh:78` Python uses `[A-Z]+-\d+` (any uppercase project key). | Known asymmetry. Plan 3 implicitly widened the contract; pick one or document the asymmetry deliberately. |
+| `JIRA_PROJECT` is a dead environment variable — declared in `templates/jira/.env.example` and `scripts/jira/transition.sh`, never read. | Cosmetic. Either remove or wire into transition.sh to constrain project scope. |
+| Cost-report owner and weekly cost report at `agents/_cost-report.md` (§12 deliverable) | Known-deferred. Flagged as an Owner deliverable but never assigned to any plan. File a new plan to implement. |
+| Failure-escalation transport (§12 deliverable) — silent handoffs >10 min fire a notification (ntfy vs Slack vs both) | Known-deferred. Transport choice was not made during the discovery panel; no plan in the 5-plan sequence picked it up. File a new plan to implement. |
+
+### Audit follow-ups (delivered)
+
+The 9 install-side audit findings, for the record:
+
+| Finding                                                            | Closed by |
+| ------------------------------------------------------------------ | --------- |
+| Plan 1 install-side wiring (MCP server, .env template, pre-commit hook, .mcp.json registration, run.sh wrapper) | PR #9 (PR-B) |
+| Plan 4 install-side wiring (UAT lifecycle scripts copy)            | PR #10 (PR-C) |
+| Pre-flight checks in install.sh                                    | PR #11 (PR-D) |
+| `label-log-append.sh` crash on `blocker_count=N/A`                 | PR #12 (PR-E) |
+| Token-prefix coverage gap (`gho_`, `ghu_`, `ghe_`)                 | PR #13 (PR-H) |
+| `scripts/uninstall.sh` was scaffold-only                           | PR #14 (PR-G) |
+| `/jak install`/`doctor`/`uninstall` slash commands missing         | PR #15 (PR-I) |
+| No CI workflow on the repo                                         | PR #8 (PR-F) |
+| PR #6 runbook bugs (made-up MCP CLI flags, wrong doctor.sh path, references to scripts that didn't exist post-install) | PR #7 (PR-A) |
 
 ## 14. Source provenance
 

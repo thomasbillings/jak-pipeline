@@ -36,16 +36,16 @@ Do NOT invoke for:
 
 ## High-level install flow
 
-`scripts/install.sh` runs from inside a target project's root. Currently implemented steps are marked **(live)**; planned steps are marked **(planned)**:
+`scripts/install.sh` runs from inside a target project's root. All six steps are live:
 
-1. **Pre-flight (planned)** — will verify `coordinator-pipeline` is installed, GitHub branch protection on `main` is active, `gh`/`python3`/`flock` are present, and the Mergify GitHub App is installed on the org.
-2. **MCP server (planned)** — will copy `mcp/mergify/` build artefacts into `<target>/.claude/mcp/mergify/`, create the `.env` skeleton, install the redaction wrapper and pre-commit hook. Today the MCP server is fully built and tested in-repo at `mcp/mergify/`, but the install-side copy is a TODO.
-3. **Mergify config (live)** — copies `templates/.mergify.yml.tmpl` to `<target>/.mergify.yml`, installs the pr-reviewer agent overlay that applies `queue:*` labels, installs the three label-trust helper scripts to `<target>/.claude/jak-pipeline/scripts/`, wires `branch-ticket-check.sh` into `.git/hooks/pre-push` (or `.husky/pre-push`).
-4. **Jira integration (live)** — copies the transition helper, drift reconciliation pass, retry queue drain, and tick-extension into `<target>/scripts/jak-pipeline/jira/`; templates `<target>/.claude/jira/.env`; appends the `jak_pipeline_jira_tick_pass` source line to `scripts/coordinator/tick.sh`.
-5. **UAT scaffolding (live, partial)** — prompts for UAT strategy (default `local-docker`); on `local-docker` copies the Compose overlay to `<target>/docker/docker-compose.local-uat.yml`; copies the Storybook preview workflow to `<target>/.github/workflows/`. The four UAT lifecycle scripts (`run.sh`, `local-docker-{start,stop,accept,reject}.sh`) are **not yet copied** into the downstream — this is the open Plan 4 install-side gap.
-6. **Phased activation (live)** — emits the per-queue enable cookbook reference; the user applies phases from `templates/phase-rollout-commits.md` on their own cadence (Day 0 disabled / Day 1-2 plan / Day 3-5 infra / Day 6-13 bug→feature→design / Day 14+ retire auto-update-prs.yml).
+1. **Pre-flight** — verifies `coordinator-pipeline` is installed (`scripts/coordinator/tick.sh` present), the downstream is a git repository, and the required CLIs (`gh`, `python3`, `flock`, `node` ≥ 20, `bash` ≥ 4) are available. With `JAK_REMOTE_CHECKS=1`, also verifies GitHub branch protection on `main` and Mergify GitHub App install. Bypass with `JAK_SKIP_PREFLIGHT=1`.
+2. **MCP server** — copies `mcp/mergify/{dist,src,package.json,package-lock.json,tsconfig.json,README.md}` to `<target>/.claude/mcp/mergify/`, runs `npm ci --omit=dev` for runtime deps, templates `.env` from `.env.example` (idempotent — never overwrites), writes a `run.sh` wrapper that sources `.env` and execs node, registers the server in `<target>/.mcp.json` (preserves other entries), installs the token-prefix-scan pre-commit hook.
+3. **Mergify config** — copies `templates/.mergify.yml.tmpl` to `<target>/.mergify.yml`, installs the pr-reviewer agent overlay that applies `queue:*` labels (sentinel-bounded, idempotent), installs the three label-trust helper scripts to `<target>/.claude/jak-pipeline/scripts/`, wires `branch-ticket-check.sh` into `.git/hooks/pre-push` (or `.husky/pre-push`).
+4. **Jira integration** — copies the transition helper, drift reconciliation pass, retry queue drain, and tick-extension into `<target>/scripts/jak-pipeline/jira/`; templates `<target>/.claude/jira/.env`; appends the `jak_pipeline_jira_tick_pass` source line to `scripts/coordinator/tick.sh`.
+5. **UAT scaffolding** — prompts for UAT strategy (default `local-docker`); on `local-docker` copies the Compose overlay to `<target>/docker/docker-compose.local-uat.yml`; copies the Storybook preview workflow to `<target>/.github/workflows/`; copies the four UAT lifecycle scripts + `run.sh` dispatcher into `<target>/scripts/jak-pipeline/uat/`.
+6. **Phased activation** — emits the per-queue enable cookbook reference; the user applies phases from `templates/phase-rollout-commits.md` on their own cadence (Day 0 disabled / Day 1-2 plan / Day 3-5 infra / Day 6-13 bug→feature→design / Day 14+ retire auto-update-prs.yml).
 
-`scripts/doctor.sh` runs a non-destructive health check (Plan 2 + Plan 3 + Plan 4 sections live; Plan 1 section depends on the planned MCP install wiring). `scripts/uninstall.sh` is currently a scaffold that exits non-zero; full reversal is planned.
+`scripts/doctor.sh` runs a non-destructive health check covering all 4 plans. `scripts/uninstall.sh` reverses the install: removes every file install.sh created (including credentials in `.env` files); preserves `agents/` (user-generated audit data) and pre-existing content in sentinel-bounded files (`pr-reviewer.md`, `tick.sh`, `.gitignore`, git hooks). Run via the `/jak install`, `/jak doctor`, `/jak uninstall` slash commands or invoke the scripts directly.
 
 ## Prerequisites
 
@@ -72,18 +72,14 @@ Required CLIs on the install machine: `gh`, `python3`, `flock`, `node` ≥ 20, `
 | **Plan 3** | Jira board provisioning, idempotent transition helper, `tick.sh` drift reconciliation, `_jira-retry.json` queue.              | **delivered** (PR #3)   |
 | **Plan 4** | UAT environment Docker stack, pluggable strategy abstraction, Storybook preview-per-PR. (First install on TnT Finance pending.) | **delivered** (PR #5 — recovered after PR #4 was merged into the wrong base) |
 
-Open follow-ups (not Plan-numbered). Each links to its scheduled PR-slug:
+Open follow-ups (audit cleanup all merged 2026-05-13/14 — only operational items remain):
 
-- **PR-B (Plan 1 install wiring)** — `install.sh`'s Plan 1 step is still a TODO. The MCP server is fully built and tested under `mcp/mergify/`, but `install.sh` never copies it to `<downstream>/.claude/mcp/mergify/` or templates the `.env` or installs the pre-commit hook. `doctor.sh`'s Plan 1 section also needs its MCP path resolver fixed for the downstream layout.
-- **PR-C (Plan 4 install wiring)** — `install.sh`'s Plan 4 section copies the Compose overlay and Storybook workflow but skips the four UAT lifecycle scripts (`scripts/uat/run.sh` + the four `local-docker-*.sh`). Runbook §4 references those installed paths; they don't exist post-install today.
-- **PR-D (pre-flight checks)** — install.sh §1 step 1 above is aspirational. No CLI / coordinator-pipeline / branch-protection / GitHub-App checks today.
-- **PR-E (label-log-append.sh `N/A` crash)** — architecture §7 specifies `blocker_count=N/A` for user-applied labels but the writer crashes on non-numeric values.
-- **PR-G (uninstall.sh)** — scaffold-only; reversal is planned.
-- **PR-H (token-prefix expansion)** — pre-commit hook + redaction wrapper miss newer GitHub formats (`gho_`, `ghu_`, `ghe_`).
-- ~~**PR-I (slash commands)** — `/jak install`, `/jak doctor`, `/jak uninstall` referenced by the original Plan 4 brief don't exist yet.~~ Delivered: see [.claude/commands/](.claude/commands/).
-- **Plan 4 first downstream install (post-PR-C)** — still pending. The "first install on TnT Finance" deliverable depends on PR-B+PR-C.
-- **CI workflow (PR-F)** — landing automated test runs on PR makes the rest of these safer to ship.
-- **`main` is not branch-protected.** That's how PR #4 was merged into a non-main base in the first place. Set up branch protection once the audit follow-ups are merged.
+- **First downstream install pending.** Plans 0–4 are delivered and the installer is end-to-end functional, but no downstream has been bootstrapped yet. The "first install on TnT Finance" deliverable from Plan 4 is the next concrete step.
+- **`main` is not branch-protected.** Plans 1–4 squash-merged via PRs but the lack of branch protection is what allowed PR #4 to be merged into a non-main base. Set up branch protection on the jak-pipeline repo: require PR + require status checks (`top-level vitest`, `mcp/mergify vitest + build`). One-time operational change; not code.
+- **`agents/_cost-report.md` (architecture §12 deliverable)** — Mergify queue actions + Anthropic spend per merged PR. Was flagged at Plan 4 but never assigned a plan. New plan required.
+- **Failure-escalation transport (architecture §12 deliverable)** — silent handoffs >10 min fire a notification (ntfy vs Slack vs both). Transport choice was never made during the discovery panel; needs a new plan.
+
+A full audit on 2026-05-13 surfaced 9 install-side gaps (Plan 1 install wiring, Plan 4 install wiring, pre-flight checks, label-log N/A crash, token-prefix gaps, scaffold-only uninstall, missing slash commands, no CI workflow, my own PR #6 runbook bugs). All 9 closed via PRs #7–#15 between 2026-05-13 and 2026-05-14.
 
 ## References
 
