@@ -113,9 +113,14 @@ esac
 # eventual push and the dev-agent stalls with no obvious cause.
 # Validate at plan-review time so the planner fixes it before merge.
 TICKET="$(get_scalar ticket)"
+# Project key shape — Atlassian-compliant: uppercase letter followed by
+# uppercase letters or digits (NO underscores; Atlassian rejects them in
+# project keys). Aligned with tick-extension.sh's BRANCH_RE and
+# lib.sh:extract_ticket_from_branch per issue #67. If you change the shape
+# here, update the other two AND the test fixtures.
 if [ -n "$TICKET" ]; then
-  if ! printf '%s' "$TICKET" | grep -qE '^[A-Z][A-Z0-9_]*-[0-9]+$'; then
-    add_finding "ticket_format_invalid" "ticket: must match <PROJECT-KEY>-<N> (uppercase project key, dash, digits); got: $TICKET"
+  if ! printf '%s' "$TICKET" | grep -qE '^[A-Z][A-Z0-9]*-[0-9]+$'; then
+    add_finding "ticket_format_invalid" "ticket: must match <PROJECT-KEY>-<N> (uppercase project key, dash, digits — Atlassian project keys do not allow underscores); got: $TICKET"
   fi
 fi
 

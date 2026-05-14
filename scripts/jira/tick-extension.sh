@@ -75,7 +75,11 @@ def state_index(s):
     try: return FORWARD_ORDER.index(s)
     except ValueError: return -1
 
-BRANCH_RE = re.compile(r"^(?:plan|feat|fix|chore|design|docs|test)/([A-Z]+-\d+)-")
+# Project key shape — Atlassian-compliant: uppercase letter followed by
+# uppercase letters or digits (NO underscores; Atlassian rejects them in
+# project keys). Aligned across check-plan.sh step 5.5 +
+# lib.sh:extract_ticket_from_branch per issue #67.
+BRANCH_RE = re.compile(r"^(?:plan|feat|fix|chore|design|docs|test)/([A-Z][A-Z0-9]*-\d+)-")
 
 def expected_state(pr):
     if pr.get("merged") or pr.get("state") == "MERGED":
