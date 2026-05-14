@@ -101,7 +101,9 @@ describe('env-leak-guard (a12)', () => {
   it('DEFAULT_GUARDED_PATHS contains both repo root .env and mcp/mergify/.env', async () => {
     const { DEFAULT_GUARDED_PATHS } = await import('../src/env-leak-guard.js');
     expect(DEFAULT_GUARDED_PATHS).toHaveLength(2);
-    expect(DEFAULT_GUARDED_PATHS[0]).toMatch(/jak-pipeline[/\\]\.env$/);
+    // Match any 'jak-pipeline'-prefixed directory (covers worktrees like
+    // `jak-pipeline-triage` whose root resolves to a different basename).
+    expect(DEFAULT_GUARDED_PATHS[0]).toMatch(/jak-pipeline[^/\\]*[/\\]\.env$/);
     expect(DEFAULT_GUARDED_PATHS[1]).toMatch(/mcp[/\\]mergify[/\\]\.env$/);
   });
 });
