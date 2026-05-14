@@ -9,5 +9,7 @@ build/
 .vscode/
 *.log
 coverage/
-agents/
-worktrees/
+# Root-anchored — these are runtime-only at the repo root; we DO ship
+# templates/agents/ (the agent template files) and templates/plans/.
+/agents/
+/worktrees/
