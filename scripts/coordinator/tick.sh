@@ -30,6 +30,12 @@ fi
 # Load pipeline config — sets PLAN_REPO + PROJECT (empty strings in legacy mode).
 load_pipeline_config
 
+# Reconcile _state.json from the journal frontmatter before we classify.
+# dev-agents write only to their journal; without this pass _state.json
+# stays frozen and tick.sh false-positives "stuck" / never sees "done".
+# See lib.sh:reconcile_state_from_journals (#48).
+reconcile_state_from_journals
+
 # Refresh the remote ref for main; do NOT touch the working tree — the
 # coordinator may be running from a feature branch or worktree.
 git fetch origin main --quiet || {
@@ -134,6 +140,7 @@ NEW_AGENT_STATE="$(printf '%s' "$CLASSIFIED" | jq -c '.[]' | while read -r agent
   # session_id is unique per dispatch and appears in claude's argv, so
   # pgrep -f "$session_id" is PID-reuse-safe. kill -0 alone isn't.
   session_id="$(jq -r --arg slug "$slug" '.agents[$slug].session_id // empty' "$STATE_FILE")"
+  pr_url="$(jq -r --arg slug "$slug" '.agents[$slug].pr_url // empty' "$STATE_FILE")"
   alive="false"
   if [ -n "$session_id" ] && pgrep -f "$session_id" > /dev/null 2>&1; then
     if [ "$pid" != "0" ] && [ "$pid" != "null" ] && kill -0 "$pid" 2>/dev/null; then
@@ -205,13 +212,17 @@ NEW_PLANS="$(jq -n --argjson eligible "$(printf '%s\n' "${ELIGIBLE_PLANS[@]:-}" 
   | map(select(. != ""))
   | map(
       . as $slug
+      | (($agents | map(select(.slug == $slug)) | .[0]) // null) as $matching_agent
+      | (($matching_agent.status) // $plans[$slug].status // "new") as $state
       | {
           slug: $slug,
           in_state: ($plans | has($slug)),
-          has_agent: ($agents | map(.slug) | index($slug) != null),
-          state: ($plans[$slug].status // "new")
+          has_agent: ($matching_agent != null and $matching_agent.alive == true),
+          state: $state,
+          pr_url: ($matching_agent.pr_url // null)
         }
     )
+  | map(select(.state != "done"))   # done plans drop off eligibility
 ')"
 
 # ---- 4. Emit summary ----
