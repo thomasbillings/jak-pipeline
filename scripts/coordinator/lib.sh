@@ -148,6 +148,28 @@ extract_ticket_from_plan () {
   ' "$plan_file"
 }
 
+# extract_ticket_from_branch <branch-name>
+#
+# Echoes the ticket key from a branch name of the form `<prefix>/<TICKET>-<slug>`,
+# or empty if the branch doesn't carry a ticket. Used by the dev-agent to build
+# PR titles like `<TICKET>: <type>: <description>` for human discoverability;
+# Jira-GitHub auto-linking already works via the branch name alone.
+#
+# Regex matches tick-extension.sh's BRANCH_RE exactly so the dev-agent and the
+# drift-reconciliation pass see the same ticket. Accepted prefixes mirror
+# `branch-ticket-check.sh`: plan, feat, fix, chore, design, docs, test.
+#
+# Examples:
+#   feat/SCRUM-1-add-foo         → SCRUM-1
+#   plan/GH-7-something          → GH-7
+#   chore/SCRUM-42-bump-deps     → SCRUM-42
+#   feat/no-ticket-slug-here     → "" (empty — legacy fallback path)
+#   main                         → ""
+extract_ticket_from_branch () {
+  local branch="${1:-}"
+  printf '%s' "$branch" | sed -nE 's,^(plan|feat|fix|chore|design|docs|test)/([A-Z]+-[0-9]+)-.*,\2,p'
+}
+
 # state_write <jq_expr> [jq args...]
 #
 # Read-modify-write `_state.json` atomically, under an exclusive flock

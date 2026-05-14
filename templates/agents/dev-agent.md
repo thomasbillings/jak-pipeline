@@ -310,10 +310,25 @@ Checkpoint: `tier-decided`.
 
 ## 13. Open the PR
 
+Before constructing the PR title, extract the ticket key from the branch name (set by `dispatch.sh` as `feat/<TICKET>-<slug>`):
+
+```bash
+# Source lib.sh to get extract_ticket_from_branch (matches tick-extension.sh's
+# BRANCH_RE exactly so the dev-agent and drift reconciliation see the same
+# ticket key on the branch).
+. scripts/coordinator/lib.sh
+TICKET="$(extract_ticket_from_branch "$BRANCH")"
+# Build the title prefix: "<TICKET>: " when present, empty when not
+# (legacy fallback path for installs without branch-ticket-check enabled).
+TITLE_PREFIX="${TICKET:+${TICKET}: }"
+```
+
+Then open the PR. The ticket prefix is visible to humans scrolling the GitHub PR list, and Atlassian's Jira-GitHub integration picks it up from the title in addition to the branch name (defense-in-depth — branch name remains the canonical source for `tick-extension.sh`).
+
 ```bash
 # gh pr create is broken in this repo per CLAUDE.md — use gh api
 gh api repos/thomasbillings/TnT-Finance/pulls -X POST \
-  -f title="<type>: <short description>" \
+  -f title="${TITLE_PREFIX}<type>: <short description>" \
   -f head="$BRANCH" \
   -f base="main" \
   -f body="$(cat <<EOF
@@ -334,10 +349,18 @@ gh api repos/thomasbillings/TnT-Finance/pulls -X POST \
 ## Plan
 plans/<date>-<slug>.md
 
+${TICKET:+Ticket: \`${TICKET}\`}
+
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )" --jq '.html_url'
 ```
+
+Examples of acceptable resulting titles:
+
+- `SCRUM-7: feat: add user profile page` (ticket present on branch)
+- `S20-4: fix: dispatch.sh hangs on resume` (multi-char project key)
+- `chore: bump vitest to 4` (no ticket on branch — legacy fallback path, allowed)
 
 Checkpoint: `pr-open`. Record PR URL in journal.
 
