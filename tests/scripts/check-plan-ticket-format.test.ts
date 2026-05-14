@@ -62,16 +62,22 @@ describe('check-plan.sh — ticket: format validation (issue #63)', () => {
     expect(r.stdout + r.stderr).not.toMatch(/ticket_format_invalid/);
   });
 
-  it('valid ticket: field (multi-char project key, e.g. S20-4) — no finding', () => {
+  it('valid ticket: field with digit in project key (S20-4) — no finding', () => {
+    // Atlassian-compliant: project keys can have digits after the leading
+    // letter. Issue #67 tightened the regex to ACCEPT this (the previous
+    // tick-extension.sh BRANCH_RE rejected it, creating a silent skew with
+    // check-plan).
     const plan = writePlan({ ...baseFrontmatter, ticket: 'S20-4' });
     const r = runCheckPlan(plan);
     expect(r.stdout + r.stderr).not.toMatch(/ticket_format_invalid/);
   });
 
-  it('valid ticket: field with underscore (FOO_BAR-12) — no finding', () => {
+  it('invalid: underscore in project key (FOO_BAR-12) — surfaces ticket_format_invalid', () => {
+    // Atlassian project keys do NOT allow underscores. Per issue #67, the
+    // check-plan regex was tightened to reject this — previously permitted.
     const plan = writePlan({ ...baseFrontmatter, ticket: 'FOO_BAR-12' });
     const r = runCheckPlan(plan);
-    expect(r.stdout + r.stderr).not.toMatch(/ticket_format_invalid/);
+    expect(r.stdout + r.stderr).toMatch(/ticket_format_invalid/);
   });
 
   it('invalid: lowercase project key (scrum-1) — surfaces ticket_format_invalid', () => {

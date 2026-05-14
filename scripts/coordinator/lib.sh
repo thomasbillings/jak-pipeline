@@ -155,19 +155,26 @@ extract_ticket_from_plan () {
 # PR titles like `<TICKET>: <type>: <description>` for human discoverability;
 # Jira-GitHub auto-linking already works via the branch name alone.
 #
-# Regex matches tick-extension.sh's BRANCH_RE exactly so the dev-agent and the
-# drift-reconciliation pass see the same ticket. Accepted prefixes mirror
-# `branch-ticket-check.sh`: plan, feat, fix, chore, design, docs, test.
+# Project key shape — Atlassian-compliant: uppercase letter followed by
+# uppercase letters or digits (NO underscores; Atlassian rejects them in
+# project keys). Aligned with tick-extension.sh's BRANCH_RE and
+# check-plan.sh's step 5.5 validation regex — see issue #67. If you change
+# the shape here, update the other two AND the test fixtures.
+#
+# Accepted prefixes mirror `branch-ticket-check.sh`:
+# plan, feat, fix, chore, design, docs, test.
 #
 # Examples:
 #   feat/SCRUM-1-add-foo         → SCRUM-1
 #   plan/GH-7-something          → GH-7
 #   chore/SCRUM-42-bump-deps     → SCRUM-42
-#   feat/no-ticket-slug-here     → "" (empty — legacy fallback path)
+#   feat/S20-4-add-foo           → S20-4   (digit in project key — Atlassian allows)
+#   feat/FOO_BAR-12-baz          → ""      (underscore — Atlassian rejects)
+#   feat/no-ticket-slug-here     → ""      (legacy fallback path)
 #   main                         → ""
 extract_ticket_from_branch () {
   local branch="${1:-}"
-  printf '%s' "$branch" | sed -nE 's,^(plan|feat|fix|chore|design|docs|test)/([A-Z]+-[0-9]+)-.*,\2,p'
+  printf '%s' "$branch" | sed -nE 's,^(plan|feat|fix|chore|design|docs|test)/([A-Z][A-Z0-9]*-[0-9]+)-.*,\2,p'
 }
 
 # state_write <jq_expr> [jq args...]
