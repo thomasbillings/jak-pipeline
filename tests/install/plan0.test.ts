@@ -129,4 +129,62 @@ describe('install.sh — Plan 0 (coordinator-pipeline scaffolding)', () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/already present/);
   });
+
+  // PR-L2 backfills — gaps flagged by the post-merge review.
+
+  it('appends a leading newline when .gitignore lacks a trailing newline', async () => {
+    fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/');  // NO trailing \n
+
+    await runInstall(tmpDir);
+
+    const gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
+    // node_modules/ must be on its own line, NOT concatenated with the next
+    expect(gi).toMatch(/^node_modules\/\n/);
+    expect(gi).toMatch(/coordinator pipeline/);
+  });
+
+  it('creates .gitignore from scratch when none exists at install time', async () => {
+    // No pre-existing .gitignore
+    expect(fs.existsSync(path.join(tmpDir, '.gitignore'))).toBe(false);
+
+    await runInstall(tmpDir);
+
+    expect(fs.existsSync(path.join(tmpDir, '.gitignore'))).toBe(true);
+    const gi = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf8');
+    expect(gi).toContain('/agents/_state.json');
+    expect(gi).toContain('/agents/_label-log.jsonl');
+  });
+
+  it('does not overwrite pre-existing coordinator scripts (bootstrap.sh idempotence contract)', async () => {
+    fs.mkdirSync(path.join(tmpDir, 'scripts', 'coordinator'), { recursive: true });
+    const tickSh = path.join(tmpDir, 'scripts', 'coordinator', 'tick.sh');
+    fs.writeFileSync(tickSh, '#!/usr/bin/env bash\n# my customised tick\n', { mode: 0o755 });
+
+    await runInstall(tmpDir);
+
+    expect(fs.readFileSync(tickSh, 'utf8')).toBe('#!/usr/bin/env bash\n# my customised tick\n');
+  });
+
+  it('fails clearly when a template source is missing (defensive)', async () => {
+    // Point JAK_SKILL_ROOT at a directory that's NOT the real skill repo
+    const fakeSkill = fs.mkdtempSync(path.join(os.tmpdir(), 'jak-fake-skill-'));
+    try {
+      // Create a fake skill root with templates dir but missing files
+      fs.mkdirSync(path.join(fakeSkill, 'templates', 'agents'), { recursive: true });
+      fs.mkdirSync(path.join(fakeSkill, 'scripts'), { recursive: true });
+      fs.writeFileSync(path.join(fakeSkill, 'scripts', 'install.sh'),
+        fs.readFileSync(path.join(SKILL_ROOT, 'scripts', 'install.sh'), 'utf8'));
+      fs.chmodSync(path.join(fakeSkill, 'scripts', 'install.sh'), 0o755);
+
+      const r = await runInstall(tmpDir, { JAK_SKILL_ROOT: fakeSkill });
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toMatch(/MISSING source/);
+    } finally {
+      fs.rmSync(fakeSkill, { recursive: true, force: true });
+    }
+  });
+
+  // Note: the interactive TTY prompt path (install.sh:131-154) is not
+  // exercised in vitest — it requires a pty wrapper. Manual testing
+  // covers it; documented here as a known coverage gap.
 });

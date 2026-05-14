@@ -66,6 +66,19 @@ describe('install.sh — pre-flight section', () => {
     expect(result.stdout).toMatch(/Pre-flight.*All hard checks passed/);
   });
 
+  // Regression for PR #19's empty-array fix (install.sh:87-93).
+  // Previously, `for err in "${PREFLIGHT_ERRORS[@]:-}"` expanded to a single
+  // empty string under set -u and printed bogus "[Pre-flight] ✗" + "[Pre-flight] "
+  // lines to stderr on every clean run.
+  it('clean pre-flight emits NO bogus empty error/warning lines on stderr', async () => {
+    fs.mkdirSync(path.join(tmpDir, '.git'), { recursive: true });
+    const result = await runInstall(tmpDir);
+    // No empty "[Pre-flight] ✗ " line
+    expect(result.stderr).not.toMatch(/^\[Pre-flight\] ✗ ?\s*$/m);
+    // No empty "[Pre-flight]  " warning line
+    expect(result.stderr).not.toMatch(/^\[Pre-flight\] \s*$/m);
+  });
+
   it('JAK_SKIP_PREFLIGHT=1 bypasses all pre-flight checks', async () => {
     // Empty tmpDir — would normally fail multiple pre-flight checks
     const result = await runInstall(tmpDir, { JAK_SKIP_PREFLIGHT: '1' });
