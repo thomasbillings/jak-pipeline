@@ -49,7 +49,7 @@ MCP server tests live in `mcp/mergify/tests/` and run from inside that package; 
 | `tests/jira/transition-verify-after-write.test.ts` | Re-reads after write to confirm the transition landed. |
 | `tests/jira/drift-reconciliation.test.ts` | Drift detection reads Jira state, compares to GitHub PR state, flags mismatches. |
 | `tests/jira/drain-retry-queue.test.ts` | Drain script processes `_jira-retry.json` entries in order, removes on success. |
-| `tests/jira/provision-board.test.ts` | Idempotent board creation; doesn't overwrite an existing board. |
+| `tests/jira/provision-board.test.ts` | Idempotent workflow provisioning via `/rest/api/3/workflows/create` + `/workflowscheme/project/switch`. No-ops when the project already has the `jak-pipeline` scheme and all 12 statuses. Board column mapping is a manual UI step on Cloud and is not exercised. |
 | `tests/jira/tick-extension-shape.test.ts` | `jak_pipeline_jira_tick_pass` function shape — exit semantics, log output. |
 | `tests/jira/owner-jql-filters.test.ts` | JQL filters from `references/owner-jql-filters.md` parse and execute. |
 | `tests/jira/install-script.test.ts` | `install.sh` Plan 3 section — temp-dir downstream simulation + idempotence (a16). |

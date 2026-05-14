@@ -69,7 +69,7 @@ Required CLIs on the install machine: `gh`, `python3`, `flock`, `node` ≥ 20, `
 | **Plan 0** | Coordinator-pipeline scaffolding — planner / plan-reviewer / dev-agent / coordinator-tick + tick.sh / dispatch.sh / lib.sh / check-plan.sh + gitignore template. Absorbed from the formerly-separate `coordinator-pipeline` skill. | **delivered** (PR-J) |
 | **Plan 1** | Mergify MCP server (TS/stdio, 6 role-gated tools, redaction wrapper, failing-test fixture, pre-commit token-prefix hook).     | **delivered** (PR #1)   |
 | **Plan 2** | `.mergify.yml.tmpl` + named-queue config; agent label-application transitions; `_label-log.jsonl` writer; phased activation.  | **delivered** (PR #2)   |
-| **Plan 3** | Jira board provisioning, idempotent transition helper, `tick.sh` drift reconciliation, `_jira-retry.json` queue.              | **delivered** (PR #3)   |
+| **Plan 3** | Jira workflow provisioning (12 statuses + scheme via `/rest/api/3/workflows/create`; board column mapping is a manual UI step on Cloud), idempotent transition helper, `tick.sh` drift reconciliation, `_jira-retry.json` queue. | **delivered** (PR #3; `provision-board.sh` rewrite for the workflows API in issue #23) |
 | **Plan 4** | UAT environment Docker stack, pluggable strategy abstraction, Storybook preview-per-PR. (First install on TnT Finance pending.) | **delivered** (PR #5 — recovered after PR #4 was merged into the wrong base) |
 
 Open follow-ups:
