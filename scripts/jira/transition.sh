@@ -189,15 +189,28 @@ print(data.get('fields', {}).get('status', {}).get('name', ''))
     return 0
   fi
 
-  # 3. Find the transition ID for TARGET_STATE
+  # 3. Find the transition ID whose destination status name == TARGET_STATE.
+  #
+  # We previously had a bash grep fast-path that tried to match
+  # `"name":"${TARGET_STATE}"` against the transitions JSON and extract the
+  # adjacent `"id"`. That was unsafe in two ways: (a) Jira returns the
+  # transitions list as a single-line JSON document, so `grep -B1` is a
+  # no-op; (b) the greedy `sed 's/.*"id":"\([^"]*\)".*/\1/'` captured the
+  # LAST quoted `"id"` on the line — which is the destination status's
+  # `to.id`, not the transition's own `id`. Against any workflow whose
+  # transition names differ from status names (e.g. the canonical
+  # "Move to <STATE>" convention), every lookup routed to the wrong
+  # endpoint and got HTTP 400 from Jira. The python fallback below had the
+  # correct logic but never ran, because the grep always produced a
+  # non-empty wrong value.
+  #
+  # We now use the python parser as the only path. It iterates the
+  # transitions array and matches by either the transition's `name` OR its
+  # `to.name` — both naming conventions stay supported.
   local transitions_json
   transitions_json="$(jira_get "/rest/api/3/issue/${TICKET}/transitions")"
   local transition_id
-  transition_id="$(echo "$transitions_json" | grep -B1 "\"name\":\"${TARGET_STATE}\"" | grep '"id"' | head -1 | sed 's/.*"id":"\([^"]*\)".*/\1/' || true)"
-
-  if [[ -z "$transition_id" ]]; then
-    # Try alternative JSON parsing
-    transition_id="$(echo "$transitions_json" | TARGET_STATE="$TARGET_STATE" python3 -c "
+  transition_id="$(echo "$transitions_json" | TARGET_STATE="$TARGET_STATE" python3 -c "
 import sys, json, os
 data = json.load(sys.stdin)
 target = os.environ['TARGET_STATE']
@@ -206,7 +219,6 @@ for t in data.get('transitions', []):
         print(t['id'])
         break
 " 2>/dev/null || true)"
-  fi
 
   if [[ -z "$transition_id" ]]; then
     echo "JIRA_WARN: no transition to '$TARGET_STATE' found for $TICKET (from '$current_state')" >&2
