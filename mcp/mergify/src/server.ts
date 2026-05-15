@@ -183,3 +183,5 @@ export async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
+
+main().catch(console.error);
