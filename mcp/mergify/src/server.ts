@@ -1,6 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { gate, type ToolName } from './role-gate.js';
 import { redactErrorEnvelope, type ErrorEnvelope } from './redaction.js';
 import { createCache } from './cache.js';
@@ -182,4 +184,9 @@ export async function main(): Promise<void> {
   const server = await createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+}
+
+// Auto-start only when executed as the Node entry point, not when imported in tests.
+if (resolve(process.argv[1] ?? '') === resolve(fileURLToPath(import.meta.url))) {
+  main().catch(console.error);
 }
