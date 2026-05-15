@@ -172,19 +172,20 @@ extract_ticket_from_plan () {
 # the shape here, update the other two AND the test fixtures.
 #
 # Accepted prefixes mirror `branch-ticket-check.sh`:
-# plan, feat, fix, chore, design, docs, test.
+# plan, feat, fix, chore, design, docs, test, infra.
 #
 # Examples:
 #   feat/SCRUM-1-add-foo         → SCRUM-1
 #   plan/GH-7-something          → GH-7
 #   chore/SCRUM-42-bump-deps     → SCRUM-42
+#   infra/S20-38-pipeline-fix    → S20-38  (infra lane — aligned with tick-extension BRANCH_RE)
 #   feat/S20-4-add-foo           → S20-4   (digit in project key — Atlassian allows)
 #   feat/FOO_BAR-12-baz          → ""      (underscore — Atlassian rejects)
 #   feat/no-ticket-slug-here     → ""      (legacy fallback path)
 #   main                         → ""
 extract_ticket_from_branch () {
   local branch="${1:-}"
-  printf '%s' "$branch" | sed -nE 's,^(plan|feat|fix|chore|design|docs|test)/([A-Z][A-Z0-9]*-[0-9]+)-.*,\2,p'
+  printf '%s' "$branch" | sed -nE 's,^(plan|feat|fix|chore|design|docs|test|infra)/([A-Z][A-Z0-9]*-[0-9]+)-.*,\2,p'
 }
 
 # state_write <jq_expr> [jq args...]

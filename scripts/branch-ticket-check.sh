@@ -60,7 +60,7 @@ resolve_project_key() {
 
 PROJECT_KEY="$(resolve_project_key)"
 
-REGEX="^(plan|feat|fix|chore|design|docs|test)/(${PROJECT_KEY}-[0-9]+|GH-[0-9]+)-[a-z0-9-]+\$"
+REGEX="^(plan|feat|fix|chore|design|docs|test|infra)/(${PROJECT_KEY}-[0-9]+|GH-[0-9]+)-[a-z0-9-]+\$"
 
 if [[ -z "$BRANCH" ]]; then
   echo "branch-ticket-check: branch name is empty; expected pattern: ${REGEX}" >&2

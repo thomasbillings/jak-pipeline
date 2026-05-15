@@ -33,7 +33,7 @@ describe('lib.sh:extract_ticket_from_branch', () => {
     expect(extract('plan/GH-7-something')).toBe('GH-7');
   });
 
-  it('handles each branch-ticket-check.sh-recognised prefix (plan|feat|fix|chore|design|docs|test)', () => {
+  it('handles each branch-ticket-check.sh-recognised prefix (plan|feat|fix|chore|design|docs|test|infra)', () => {
     expect(extract('plan/PROJ-1-x')).toBe('PROJ-1');
     expect(extract('feat/PROJ-2-x')).toBe('PROJ-2');
     expect(extract('fix/PROJ-3-x')).toBe('PROJ-3');
@@ -41,6 +41,7 @@ describe('lib.sh:extract_ticket_from_branch', () => {
     expect(extract('design/PROJ-5-x')).toBe('PROJ-5');
     expect(extract('docs/PROJ-6-x')).toBe('PROJ-6');
     expect(extract('test/PROJ-7-x')).toBe('PROJ-7');
+    expect(extract('infra/PROJ-8-x')).toBe('PROJ-8');
   });
 
   it('returns empty for a branch without a ticket (legacy feat/<slug>)', () => {
