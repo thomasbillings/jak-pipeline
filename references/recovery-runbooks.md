@@ -301,8 +301,8 @@ git log --oneline --all -- .mergify.yml | head -10
 # 2. See exactly what each phase commit changed
 git show <phase-commit-sha> -- .mergify.yml
 
-# 3. Confirm which queues are currently enabled (disabled: true → disabled)
-grep -B 1 "disabled:" .mergify.yml | head -30
+# 3. Confirm which queues are currently enabled (any entry in queue_rules:)
+awk '/^queue_rules:/,/^[^ #]/' .mergify.yml | grep -E '^\s*- name:'
 
 # 4. Read the label-gate audit log for refusal patterns
 tail -50 agents/_label-log.jsonl | grep '"decision":"refuse"' | python3 -m json.tool
@@ -311,16 +311,18 @@ tail -50 agents/_label-log.jsonl | grep '"decision":"refuse"' | python3 -m json.
 ### Recovery — per scenario
 
 **A queue is misbehaving (selective rollback, keep other phases):**
-Do NOT `git revert` the phase commit if later phases stacked context on top — apply a targeted patch instead. Edit `.mergify.yml`, set `disabled: true` on the offending queue, commit with a `revert:` prefix so the audit trail is searchable:
+Do NOT `git revert` the phase commit if later phases stacked context on top — apply a targeted patch instead. Edit `.mergify.yml`, remove the offending queue's entry from `queue_rules:` and re-add the matching commented block below, then commit with a `revert:` prefix so the audit trail is searchable:
 
 ```bash
-# Edit .mergify.yml: set the offending queue back to disabled: true
+# Edit .mergify.yml: remove the offending queue from queue_rules:
+# and paste its block back into the commented section below.
+# (`disabled: true` no longer works — see references/architecture.md §11.)
 git add .mergify.yml
 git commit -m "revert(mergify): disable queue:feature — regression in <linked-ticket>"
 git push origin main      # if protection allows; else PR
 ```
 
-Subsequent phases stay enabled. Once the root cause is fixed, re-enable via a fresh phase-style commit (same diff shape as the original enable-commit).
+Subsequent phases stay enabled. Once the root cause is fixed, re-enable via a fresh phase-style commit (same uncomment-and-move shape as the original enable-commit).
 
 **`auto-update-prs.yml` was retired and a queue regression now leaves PRs unhandled:**
 Restore the workflow from git history:

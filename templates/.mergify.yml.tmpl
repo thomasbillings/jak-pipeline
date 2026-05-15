@@ -3,113 +3,116 @@
 # Generated from: jak-pipeline templates/.mergify.yml.tmpl
 # Architecture reference: references/architecture.md §5
 #
-# Day 0 state: all queues start disabled: true.
-# Activate one queue at a time per phase-rollout-commits.md.
+# Day-0 state: `queue_rules: []` — no queue is active until the first phase
+# rollout. Mergify v1 schema does NOT accept a `disabled: true` flag on a
+# queue_rule, so the legacy disable mechanism is replaced with commented-out
+# blocks below. Phase rollout = uncomment a block and move it into
+# `queue_rules:` above; rollback = `git revert` the enable commit. One queue
+# per commit. See `templates/phase-rollout-commits.md` for the exact diffs.
 #
-# Global settings (apply to all queues):
-#   merge_method: squash         — single commit per PR, clean history
-#   update_method: rebase        — defeats force-push-during-queue races
-#   batch_size: 1                — one PR per merge action
-#   speculative_checks: 1        — test the queued state, not just head
-#   allow_inplace_checks: true   — let same-SHA checks count without re-run
+# Common settings used in every queue (apply when enabling):
+#   merge_method: squash    — single commit per PR, clean history
+#   update_method: rebase   — defeats force-push-during-queue races
+#   batch_size: 1           — one PR per merge action
+#
+# Fields intentionally NOT present in this template (not valid in Mergify v1):
+#   - `disabled`              — remove queue from config to disable
+#   - `priority`              — would live in a top-level `priority_rules`
+#                               section; not needed while one queue is active
+#   - `speculative_checks`    — superseded by `batch_size`
+#   - `allow_inplace_checks`  — deprecated; auto-computed by Mergify
 
-queue_rules:
-  # Priority 4 (highest) — bug fixes; full CI gate
-  - name: bug
-    disabled: true
-    priority: 4
-    merge_method: squash
-    update_method: rebase
-    batch_size: 1
-    speculative_checks: 1
-    allow_inplace_checks: true
-    queue_conditions:
-      - "head~=^fix/"
-      - "label=queue:bug"
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=typecheck"
-      - "check-success-or-neutral=test"
-      - "check-success-or-neutral=build"
-    merge_conditions:
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=typecheck"
-      - "check-success-or-neutral=test"
-      - "check-success-or-neutral=build"
-
-  # Priority 3 — plan PRs; lint + check-plan.sh only
-  - name: plan
-    disabled: true
-    priority: 3
-    merge_method: squash
-    update_method: rebase
-    batch_size: 1
-    speculative_checks: 1
-    allow_inplace_checks: true
-    queue_conditions:
-      - "head~=^plan/"
-      - "label=queue:plan"
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=check-plan"
-    merge_conditions:
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=check-plan"
-
-  # Priority 2 — feature PRs; full CI gate
-  - name: feature
-    disabled: true
-    priority: 2
-    merge_method: squash
-    update_method: rebase
-    batch_size: 1
-    speculative_checks: 1
-    allow_inplace_checks: true
-    queue_conditions:
-      - "head~=^feat/"
-      - "label=queue:feature"
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=typecheck"
-      - "check-success-or-neutral=test"
-      - "check-success-or-neutral=build"
-    merge_conditions:
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=typecheck"
-      - "check-success-or-neutral=test"
-      - "check-success-or-neutral=build"
-
-  # Priority 1 — infra/chore PRs; lint + unit only (no e2e)
-  - name: infra
-    disabled: true
-    priority: 1
-    merge_method: squash
-    update_method: rebase
-    batch_size: 1
-    speculative_checks: 1
-    allow_inplace_checks: true
-    queue_conditions:
-      - "head~=^chore/"
-      - "label=queue:infra"
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=test"
-    merge_conditions:
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=test"
-
-  # Priority 0 (lowest) — design/CSS PRs; lint + unit fast lane (no UAT, no plan)
-  - name: design
-    disabled: true
-    priority: 0
-    merge_method: squash
-    update_method: rebase
-    batch_size: 1
-    speculative_checks: 1
-    allow_inplace_checks: true
-    queue_conditions:
-      - "head~=^design/"
-      - "label=queue:design"
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=test"
-    merge_conditions:
-      - "check-success-or-neutral=lint"
-      - "check-success-or-neutral=test"
-
+queue_rules: []
 pull_request_rules: []
+
+# ──────────────────────────────────────────────────────────────────────
+# Commented-out queue blocks below — enable one at a time per
+# `templates/phase-rollout-commits.md`. To enable a queue:
+#   1. Uncomment its block below.
+#   2. Move the uncommented block into the `queue_rules:` list above
+#      (replace `queue_rules: []` with `queue_rules:` and indent the
+#      block as a YAML list item).
+#   3. Commit. One queue per commit.
+#
+# Validation: `curl -H "Authorization: bearer $MERGIFY_API_KEY" \
+#   https://api.mergify.com/v1/repos/<org>/<repo>/queues` should return 2xx
+# after Mergify ingests the new config.
+# ──────────────────────────────────────────────────────────────────────
+
+# Queue: bug — fix/* branches; full CI gate
+# - name: bug
+#   merge_method: squash
+#   update_method: rebase
+#   batch_size: 1
+#   queue_conditions:
+#     - "head~=^fix/"
+#     - "label=queue:bug"
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=typecheck"
+#     - "check-success-or-neutral=test"
+#     - "check-success-or-neutral=build"
+#   merge_conditions:
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=typecheck"
+#     - "check-success-or-neutral=test"
+#     - "check-success-or-neutral=build"
+
+# Queue: plan — plan/* branches; lint + check-plan.sh only
+# - name: plan
+#   merge_method: squash
+#   update_method: rebase
+#   batch_size: 1
+#   queue_conditions:
+#     - "head~=^plan/"
+#     - "label=queue:plan"
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=check-plan"
+#   merge_conditions:
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=check-plan"
+
+# Queue: feature — feat/* branches; full CI gate
+# - name: feature
+#   merge_method: squash
+#   update_method: rebase
+#   batch_size: 1
+#   queue_conditions:
+#     - "head~=^feat/"
+#     - "label=queue:feature"
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=typecheck"
+#     - "check-success-or-neutral=test"
+#     - "check-success-or-neutral=build"
+#   merge_conditions:
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=typecheck"
+#     - "check-success-or-neutral=test"
+#     - "check-success-or-neutral=build"
+
+# Queue: infra — chore/* branches; lint + unit (no e2e)
+# - name: infra
+#   merge_method: squash
+#   update_method: rebase
+#   batch_size: 1
+#   queue_conditions:
+#     - "head~=^chore/"
+#     - "label=queue:infra"
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=test"
+#   merge_conditions:
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=test"
+
+# Queue: design — design/* branches; CSS/copy fast lane (lint + unit)
+# - name: design
+#   merge_method: squash
+#   update_method: rebase
+#   batch_size: 1
+#   queue_conditions:
+#     - "head~=^design/"
+#     - "label=queue:design"
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=test"
+#   merge_conditions:
+#     - "check-success-or-neutral=lint"
+#     - "check-success-or-neutral=test"

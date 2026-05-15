@@ -57,10 +57,12 @@ describe('doctor.sh Plan 2 PyYAML 3-tier check', () => {
   });
 
   it('OK state: PyYAML present + valid YAML → reports parses as valid YAML', () => {
-    // A minimal valid .mergify.yml
+    // A minimal current-schema-valid .mergify.yml. (Pre-v1, this had
+    // `disabled: true` on the queue — that field was dropped from the
+    // Mergify schema; we now disable a queue by removing it from config.)
     fs.writeFileSync(
       path.join(tmpDir, '.mergify.yml'),
-      'queue_rules:\n  - name: bug\n    disabled: true\n',
+      'queue_rules: []\npull_request_rules: []\n',
     );
 
     const r = runDoctor(tmpDir);
