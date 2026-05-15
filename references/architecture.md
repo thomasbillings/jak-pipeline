@@ -62,15 +62,14 @@ Five named queues with priorities. Lower priority is shed first under contention
 | `infra`     | `chore/*`   | `queue:infra`   | lint + unit (no e2e)         | **1**    |
 | `design`    | `design/*`  | `queue:design`  | lint + unit (fast lane; **no UAT, no plan**) | **0** (lowest) |
 
-**Global merge config (applies to every queue):**
+**Per-queue merge config (set on each queue block in `.mergify.yml`):**
 
-- `Sequential` (no parallel batches across the same queue).
-- `batch_size: 1` (one PR per merge action — straightforward attribution).
+- `merge_method: squash` (single commit per PR; clean history).
 - `update_method: rebase` (defeats force-push-during-queue races; Red Team mandate).
-- `Squash` merge into main (single commit per PR; clean history).
-- `speculative_checks: 1` (test the queued state, not just the head).
-- `check-success-or-neutral` for each required check.
-- `allow_inplace_checks: true` (let same-SHA checks count without re-running).
+- `batch_size: 1` (one PR per merge action — straightforward attribution).
+- `check-success-or-neutral=<check>` for each required CI check.
+
+Mergify still runs speculative checks and in-place check resolution under the hood — those used to be tunable via `speculative_checks: 1` and `allow_inplace_checks: true`, but both fields were dropped from the Mergify v1 schema (`speculative_checks` is folded into `batch_size`; `allow_inplace_checks` is auto-computed). The original jak-pipeline template carried both fields and was schema-invalid as a result; the migration to v1 (S20-32 downstream) removed them. Likewise `priority` is no longer set per queue — if cross-queue precedence is needed, add a top-level `priority_rules` section.
 
 The `design` queue's "no UAT, no plan" exemption is for low-blast-radius visual-only work (CSS tokens, copy tweaks) where the cost of a UAT cycle exceeds the risk it mitigates. Eligibility for `design/*` branches is enforced at PR creation by the same pre-PR hook that enforces the regex.
 
@@ -171,23 +170,23 @@ Storybook gets a per-PR preview so reviewers can poke at component changes befor
 
 ## 11. Phased activation timeline
 
-The full Mergify config is committed on Day 0 with every queue marked `disabled: true`, so the legacy `auto-update-prs.yml` workflow continues to handle merges. Each subsequent phase enables one queue (or one cohort of queues). Roll back by reverting the per-queue enable commit.
+The Mergify config is committed on Day 0 with `queue_rules: []` (no queue active) and all five queue definitions present as commented-out blocks below. The legacy `auto-update-prs.yml` workflow continues to handle merges. Each subsequent phase enables one queue by uncommenting its block and moving it into `queue_rules:`. Roll back by reverting the per-queue enable commit.
 
 | Phase     | Date         | Action                                                                                       |
 | --------- | ------------ | -------------------------------------------------------------------------------------------- |
-| **Day 0** | install day  | Commit `.mergify.yml` with all queues `disabled: true`. `auto-update-prs.yml` still runs.    |
-| **Day 1-2** | +1 day     | Enable `queue:plan`. Plan PRs now route through Mergify; everything else still uses legacy.  |
+| **Day 0** | install day  | Commit `.mergify.yml` with `queue_rules: []` and all 5 queue blocks as comments. `auto-update-prs.yml` still runs. |
+| **Day 1-2** | +1 day     | Enable `queue:plan` (uncomment + move into `queue_rules`). Plan PRs route through Mergify; everything else still uses legacy. |
 | **Day 3-5** | +3 days    | Enable `queue:infra`. Chore PRs join.                                                         |
 | **Day 6-13** | +6 days   | Enable `queue:bug`, then `queue:feature`, then `queue:design` (separate commits, ~60s apart). Full cutover for code PRs. |
 | **Day 14+** | +14 days   | After 2 green weeks, delete `auto-update-prs.yml`. Mergify is the sole merge engine.         |
 
-**Rollback recipe:** `git revert <enable-queue-X commit>` — reverting the enable commit puts queue X back to `disabled: true` without touching the other queues. The legacy workflow doesn't need to be reinstated unless ALL queues end up disabled, in which case revert the Day-14 deletion commit too.
+**Rollback recipe:** `git revert <enable-queue-X commit>` — reverting the enable commit removes that queue's entry from `queue_rules:` and re-comments its block, without touching the other queues. The legacy workflow doesn't need to be reinstated unless ALL queues end up rolled back, in which case revert the Day-14 deletion commit too.
 
-**Per-queue enable order within Day 6-13 (resolved by Plan 2):** `queue:bug` first, `queue:feature` second, `queue:design` third.
+**Per-queue enable order within Day 6-13 (resolved by Plan 2):** `queue:bug` first, `queue:feature` second, `queue:design` third. (The original "priority 4/3/2/1/0" ordering rationale below predates the Mergify v1 schema migration — Mergify no longer accepts `priority` on a queue rule. File order in `queue_rules:` is now the implicit precedence; cross-queue priority would live in a separate `priority_rules` section if needed.)
 
-- `queue:bug` first: highest priority (4) and highest blast-radius — enabling it earliest gives the longest observation window before the Day-14 `auto-update-prs.yml` retirement.
+- `queue:bug` first: highest blast-radius — enabling it earliest gives the longest observation window before the Day-14 `auto-update-prs.yml` retirement.
 - `queue:feature` second: highest volume (every dev-agent run produces a feature PR) and operationally similar to `queue:bug`, making the mental model easy.
-- `queue:design` last: lowest priority (0), lowest risk (CSS/copy tweaks only), lighter CI gate (`lint+unit` only). Last-in is appropriate for the queue whose failure modes are visual rather than structural.
+- `queue:design` last: lowest risk (CSS/copy tweaks only), lighter CI gate (`lint+unit` only). Last-in is appropriate for the queue whose failure modes are visual rather than structural.
 
 Allow ~60 seconds between consecutive enable commits — enough time to confirm the previous queue's first PR drained cleanly before the next queue joins.
 

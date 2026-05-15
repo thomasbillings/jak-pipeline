@@ -1,43 +1,43 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { describe, it, expect } from 'vitest';
+import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { spawnSync } from 'child_process';
-import os from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '../..');
 const COOKBOOK_PATH = resolve(REPO_ROOT, 'templates/phase-rollout-commits.md');
-const TEMPLATE_PATH = resolve(REPO_ROOT, 'templates/.mergify.yml.tmpl');
 
 const PHASES = ['Day 1-2', 'Day 3-5', 'Day 6-13', 'Day 14+'];
 
 describe('templates/phase-rollout-commits.md', () => {
+  const content = existsSync(COOKBOOK_PATH) ? readFileSync(COOKBOOK_PATH, 'utf-8') : '';
+
   it('file exists', () => {
     expect(existsSync(COOKBOOK_PATH)).toBe(true);
   });
 
   it('has one section per phase (Day 1-2, Day 3-5, Day 6-13, Day 14+)', () => {
-    const content = readFileSync(COOKBOOK_PATH, 'utf-8');
     for (const phase of PHASES) {
       expect(content, `missing section for ${phase}`).toContain(phase);
     }
   });
 
-  it('each phase section contains a unified diff snippet (--- / +++ markers)', () => {
-    const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-    // Each phase should have a code block with diff content
-    expect(content).toMatch(/```diff/);
-    expect(content).toMatch(/---/);
-    expect(content).toMatch(/\+\+\+/);
+  it.each([
+    ['Day 1-2', 'queue:plan'],
+    ['Day 3-5', 'queue:infra'],
+  ])('%s section enables %s', (phase, queue) => {
+    // Slice the section between `## <phase>` and the next `## ` heading.
+    const re = new RegExp(`## ${phase}([\\s\\S]*?)(?=\\n## |$)`);
+    const match = content.match(re);
+    expect(match, `section ${phase} not found`).toBeTruthy();
+    expect(match![1]).toContain(queue);
   });
 
-  it('Day 6-13 section enables bug queue first', () => {
-    const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-    // Find the Day 6-13 section and check ordering
-    const day613Match = content.match(/Day 6-13[\s\S]*?(?=##|$)/);
-    expect(day613Match).toBeTruthy();
-    const section = day613Match![0];
+  it('Day 6-13 section enables bug → feature → design in order', () => {
+    const re = /## Day 6-13[\s\S]*?(?=\n## |$)/;
+    const match = content.match(re);
+    expect(match, 'Day 6-13 section not found').toBeTruthy();
+    const section = match![0];
     const bugPos = section.indexOf('queue:bug');
     const featurePos = section.indexOf('queue:feature');
     const designPos = section.indexOf('queue:design');
@@ -49,71 +49,37 @@ describe('templates/phase-rollout-commits.md', () => {
   });
 
   it('Day 14+ section includes guard for already-absent auto-update-prs.yml', () => {
-    const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-    // Split on ## headings to find the Day 14+ section
     const sections = content.split(/^## /m);
     const day14Section = sections.find((s) => s.startsWith('Day 14+'));
     expect(day14Section, 'Day 14+ section not found').toBeTruthy();
     const section = 'Day 14+' + day14Section!;
     expect(section).toContain('auto-update-prs.yml');
-    // Should have a guard (already absent / no-op style)
     expect(section).toMatch(/already absent|no-op|\[ -f/i);
   });
 
-  it('diffs use disabled key removal (not setting disabled: false)', () => {
-    const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-    // The diffs should remove the disabled: true line, not add disabled: false
-    expect(content).not.toMatch(/\+\s*disabled:\s*false/);
+  it('cookbook does NOT recommend setting `disabled: false` (the field is invalid in Mergify v1)', () => {
+    // Catches a regression where someone resurrects the pre-S20-32 mechanism.
+    expect(content).not.toMatch(/disabled:\s*false/);
+    expect(content).not.toMatch(/disabled:\s*true/);
   });
 
-  it('each diff applies cleanly to the template via git apply --check', () => {
-    if (!existsSync(TEMPLATE_PATH)) {
-      // Template not yet created in red phase — skip this check
-      return;
-    }
+  it('cookbook documents the new comment-out enable mechanism', () => {
+    // Each queue-enable phase should mention uncommenting the block and adding
+    // to queue_rules. The exact phrasing is intentionally not pinned — assert
+    // the operative verbs/keywords appear at least once.
+    expect(content).toMatch(/uncomment/i);
+    expect(content).toMatch(/queue_rules/);
+  });
 
-    const tmpDir = os.tmpdir() + '/jak-phase-cookbook-test-' + Date.now();
-    mkdirSync(tmpDir, { recursive: true });
+  it('each queue-enable phase shows the active YAML to add', () => {
+    // Five queues to enable × at least one ```yaml block each + Day-14 retire.
+    // Loose lower bound: at least 5 yaml fences in the file.
+    const yamlBlocks = content.match(/```yaml/g) ?? [];
+    expect(yamlBlocks.length, 'expected at least 5 ```yaml blocks (one per queue enable)').toBeGreaterThanOrEqual(5);
+  });
 
-    try {
-      // Init a git repo and copy the template as root-level .mergify.yml
-      // (matches how install.sh places it: cp .mergify.yml.tmpl <project>/.mergify.yml)
-      spawnSync('git', ['init'], { cwd: tmpDir });
-      spawnSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
-      spawnSync('git', ['config', 'user.name', 'Test'], { cwd: tmpDir });
-      writeFileSync(tmpDir + '/.mergify.yml', readFileSync(TEMPLATE_PATH, 'utf-8'));
-      spawnSync('git', ['add', '-A'], { cwd: tmpDir });
-      spawnSync('git', ['commit', '-m', 'init'], { cwd: tmpDir });
-
-      const content = readFileSync(COOKBOOK_PATH, 'utf-8');
-      // Extract diff blocks from the cookbook (only blocks that start with ---)
-      const diffBlocks = content.match(/```diff\n([\s\S]*?)```/g) ?? [];
-      const unifiedDiffs = diffBlocks.filter((b) => b.includes('--- a/'));
-
-      expect(unifiedDiffs.length, 'expected at least 5 unified diff blocks (one per queue enable)').toBeGreaterThanOrEqual(5);
-
-      // Apply diffs sequentially — each one modifies the file so subsequent diffs
-      // use context matching rather than exact line numbers.
-      for (const block of unifiedDiffs) {
-        const diff = block.replace(/^```diff\n/, '').replace(/```$/, '');
-        const diffPath = tmpDir + '/test.patch';
-        writeFileSync(diffPath, diff);
-        // --check verifies the patch can apply; --3way allows context offset after prior patches
-        const checkResult = spawnSync('git', ['apply', '--check', '--3way', diffPath], {
-          cwd: tmpDir,
-          encoding: 'utf-8',
-        });
-        expect(
-          checkResult.status,
-          `git apply --check failed for diff block:\n${diff}\nstderr: ${checkResult.stderr}`,
-        ).toBe(0);
-        // Actually apply so subsequent diffs see the updated file
-        spawnSync('git', ['apply', diffPath], { cwd: tmpDir });
-        spawnSync('git', ['add', '-A'], { cwd: tmpDir });
-        spawnSync('git', ['commit', '-m', 'apply'], { cwd: tmpDir });
-      }
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+  it('cookbook references the post-enable Mergify API validation', () => {
+    // Operators should know how to confirm Mergify accepted the new config.
+    expect(content).toMatch(/api\.mergify\.com.*queues/);
   });
 });

@@ -4,9 +4,9 @@ Project-specific config templates copied into the downstream repo by `scripts/in
 
 ## Plan 2 — Mergify config + label trust boundary
 
-- **`.mergify.yml.tmpl`** — full Mergify config with the 5 named queues (`bug`, `plan`, `feature`, `infra`, `design`), priorities, branch globs, `update_method: rebase`, `batch_size: 1`. Day-0 state: every queue `disabled: true`. Install path: `<downstream>/.mergify.yml`. See `references/architecture.md` §5.
+- **`.mergify.yml.tmpl`** — Mergify config skeleton with the 5 named queues (`bug`, `plan`, `feature`, `infra`, `design`) as commented-out blocks below an empty `queue_rules: []`. Branch globs and the `update_method: rebase` / `batch_size: 1` settings ship inside each block. Day-0 state: zero queues active; phase rollout uncomments one block at a time. The original "every queue `disabled: true`" mechanism is gone — `disabled`, `priority`, `speculative_checks`, and `allow_inplace_checks` are not valid `queue_rules` fields in Mergify v1, so all four were removed. Install path: `<downstream>/.mergify.yml`. See `references/architecture.md` §5.
 - **`agents/pr-reviewer.md`** — full pr-reviewer agent file (shipped wholesale by PR-K, replacing the historical overlay-append model). Encodes the canonical `**Blockers (N)**` / `**Should-fix (M)**` / `**Nits (K)**` review format, the branch → queue label map, and the `queue:*` label-application gate (BLOCKERs=0 + CI green + own review APPROVED). Install path: `<downstream>/.claude/agents/pr-reviewer.md` (copy-if-missing — pre-existing user files preserved).
-- **`phase-rollout-commits.md`** — per-queue activation cookbook. Each phase is a unified diff against the Day-0 `.mergify.yml`. Day 6–13 enable order: `queue:bug` → `queue:feature` → `queue:design`. Rationale in `references/architecture.md` §11.
+- **`phase-rollout-commits.md`** — per-queue activation cookbook. Each phase is a documented uncomment-and-move operation (replacing the previous "flip `disabled` flag" mechanism). Day 6–13 enable order: `queue:bug` → `queue:feature` → `queue:design`. Rationale in `references/architecture.md` §11.
 
 ## Plan 3 — Jira integration
 

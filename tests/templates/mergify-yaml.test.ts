@@ -10,149 +10,134 @@ const TEMPLATE_PATH = resolve(REPO_ROOT, 'templates/.mergify.yml.tmpl');
 
 interface QueueRule {
   name: string;
-  priority?: number;
   merge_method?: string;
   update_method?: string;
   batch_size?: number;
-  speculative_checks?: number;
-  allow_inplace_checks?: boolean;
-  disabled?: boolean;
-  conditions?: string[];
   queue_conditions?: string[];
+  merge_conditions?: string[];
 }
 
 interface MergifyConfig {
   queue_rules?: QueueRule[];
   pull_request_rules?: unknown[];
-  defaults?: {
-    actions?: {
-      queue?: {
-        merge_method?: string;
-        update_method?: string;
-        batch_size?: number;
-        speculative_checks?: number;
-        allow_inplace_checks?: boolean;
-      };
-    };
-  };
+}
+
+const QUEUE_NAMES = ['bug', 'plan', 'feature', 'infra', 'design'] as const;
+
+/**
+ * Extract the commented-out queue blocks from the template.
+ *
+ * The day-0 template ships with `queue_rules: []` (empty) and a series of
+ * commented blocks below, each looking like:
+ *
+ *   # Queue: <name> — <description>
+ *   # - name: <name>
+ *   #   merge_method: squash
+ *   #   ...
+ *
+ * Phase rollout uncomments a block. This helper strips the `# ` prefix from
+ * those lines, glues the blocks together as if they were uncommented, and
+ * parses the result as a YAML list. The returned array is the set of queue
+ * shapes the template will produce as each phase ships.
+ */
+function extractCommentedQueueBlocks(raw: string): QueueRule[] {
+  const lines = raw.split('\n');
+  const reconstructed: string[] = [];
+  let insideBlock = false;
+  for (const line of lines) {
+    // A block starts on `# - name: <queue>` and continues while subsequent
+    // lines are commented + indented (start with `#   `) or are blank-comment
+    // (`#`) lines.
+    if (/^# - name:\s+\S/.test(line)) {
+      insideBlock = true;
+      reconstructed.push(line.replace(/^# /, ''));
+      continue;
+    }
+    if (insideBlock) {
+      if (/^#(\s|$)/.test(line)) {
+        // Continuation: strip a single leading `# ` (or just `#` on blank lines).
+        reconstructed.push(line.replace(/^# ?/, ''));
+      } else {
+        insideBlock = false;
+      }
+    }
+  }
+  if (reconstructed.length === 0) return [];
+  const parsed = yaml.load(reconstructed.join('\n')) as QueueRule[] | null;
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 describe('templates/.mergify.yml.tmpl', () => {
-  let config: MergifyConfig;
+  const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
+  const config = yaml.load(raw) as MergifyConfig;
+  const commentedQueues = extractCommentedQueueBlocks(raw);
+  const byName = new Map(commentedQueues.map((q) => [q.name, q]));
 
   it('file exists and parses as valid YAML', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
     expect(config).toBeTruthy();
   });
 
-  it('has queue_rules array', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
+  it('day-0 `queue_rules` is an empty array (no queue active until phase rollout)', () => {
     expect(Array.isArray(config.queue_rules)).toBe(true);
-    expect(config.queue_rules!.length).toBe(5);
+    expect(config.queue_rules!.length).toBe(0);
   });
 
-  it('defines all 5 named queues: bug, plan, feature, infra, design', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const names = config.queue_rules!.map((q) => q.name);
-    expect(names).toContain('bug');
-    expect(names).toContain('plan');
-    expect(names).toContain('feature');
-    expect(names).toContain('infra');
-    expect(names).toContain('design');
+  it('day-0 has `pull_request_rules: []`', () => {
+    expect(Array.isArray(config.pull_request_rules)).toBe(true);
+    expect(config.pull_request_rules!.length).toBe(0);
   });
 
-  it('all queues start disabled: true (Day 0 state)', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    for (const queue of config.queue_rules!) {
-      expect(queue.disabled, `queue ${queue.name} should be disabled`).toBe(true);
-    }
+  it('contains all 5 named queues as commented-out blocks', () => {
+    const names = commentedQueues.map((q) => q.name).sort();
+    expect(names).toEqual([...QUEUE_NAMES].sort());
   });
 
-  it('bug queue: priority 4, branch glob fix/*, label queue:bug', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const bug = config.queue_rules!.find((q) => q.name === 'bug')!;
-    expect(bug.priority).toBe(4);
-    const allConditions = [...(bug.conditions ?? []), ...(bug.queue_conditions ?? [])];
-    expect(allConditions.some((c) => c.includes('fix/'))).toBe(true);
-    expect(allConditions.some((c) => c.includes('queue:bug'))).toBe(true);
+  it.each(QUEUE_NAMES)('commented block for %s queue has the expected shape', (name) => {
+    const queue = byName.get(name);
+    expect(queue, `commented block for ${name} not found`).toBeTruthy();
+    expect(queue!.merge_method).toBe('squash');
+    expect(queue!.update_method).toBe('rebase');
+    expect(queue!.batch_size).toBe(1);
+    expect(Array.isArray(queue!.queue_conditions)).toBe(true);
+    expect(Array.isArray(queue!.merge_conditions)).toBe(true);
   });
 
-  it('plan queue: priority 3, branch glob plan/*, label queue:plan', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const plan = config.queue_rules!.find((q) => q.name === 'plan')!;
-    expect(plan.priority).toBe(3);
-    const allConditions = [...(plan.conditions ?? []), ...(plan.queue_conditions ?? [])];
-    expect(allConditions.some((c) => c.includes('plan/'))).toBe(true);
-    expect(allConditions.some((c) => c.includes('queue:plan'))).toBe(true);
+  it.each([
+    ['bug', '^fix/', 'queue:bug'],
+    ['plan', '^plan/', 'queue:plan'],
+    ['feature', '^feat/', 'queue:feature'],
+    ['infra', '^chore/', 'queue:infra'],
+    ['design', '^design/', 'queue:design'],
+  ] as const)('%s queue gates on %s + label %s', (name, branchGlob, label) => {
+    const queue = byName.get(name)!;
+    const conds = queue.queue_conditions ?? [];
+    expect(conds.some((c) => c.includes(branchGlob))).toBe(true);
+    expect(conds.some((c) => c.includes(label))).toBe(true);
   });
 
-  it('feature queue: priority 2, branch glob feat/*, label queue:feature', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const feature = config.queue_rules!.find((q) => q.name === 'feature')!;
-    expect(feature.priority).toBe(2);
-    const allConditions = [...(feature.conditions ?? []), ...(feature.queue_conditions ?? [])];
-    expect(allConditions.some((c) => c.includes('feat/'))).toBe(true);
-    expect(allConditions.some((c) => c.includes('queue:feature'))).toBe(true);
+  it('template does NOT use Mergify v1-invalid fields', () => {
+    // These fields are not valid in current Mergify schema. Either they were
+    // never valid (`disabled`), have moved to a separate section (`priority`
+    // → `priority_rules`), or are deprecated (`speculative_checks`,
+    // `allow_inplace_checks`). Asserting on the raw text catches both the
+    // active queue_rules entries and the commented-out blocks.
+    expect(raw).not.toMatch(/^\s*disabled:\s*true/m);
+    expect(raw).not.toMatch(/^\s*priority:\s*\d/m);
+    expect(raw).not.toMatch(/^\s*speculative_checks:/m);
+    expect(raw).not.toMatch(/^\s*allow_inplace_checks:/m);
+    // Commented-out occurrences in the explanatory header are fine — those
+    // lines start with `#`. We only forbid them as live YAML keys.
   });
 
-  it('infra queue: priority 1, branch glob chore/*, label queue:infra', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const infra = config.queue_rules!.find((q) => q.name === 'infra')!;
-    expect(infra.priority).toBe(1);
-    const allConditions = [...(infra.conditions ?? []), ...(infra.queue_conditions ?? [])];
-    expect(allConditions.some((c) => c.includes('chore/'))).toBe(true);
-    expect(allConditions.some((c) => c.includes('queue:infra'))).toBe(true);
+  it('check-success-or-neutral appears as the gate idiom', () => {
+    expect(raw).toMatch(/check-success-or-neutral/);
   });
 
-  it('design queue: priority 0, branch glob design/*, label queue:design', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    config = yaml.load(raw) as MergifyConfig;
-    const design = config.queue_rules!.find((q) => q.name === 'design')!;
-    expect(design.priority).toBe(0);
-    const allConditions = [...(design.conditions ?? []), ...(design.queue_conditions ?? [])];
-    expect(allConditions.some((c) => c.includes('design/'))).toBe(true);
-    expect(allConditions.some((c) => c.includes('queue:design'))).toBe(true);
-  });
-
-  it('global section sets merge_method: squash', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    // merge_method can be in defaults or per-queue; check it appears somewhere
-    expect(raw).toContain('squash');
-  });
-
-  it('global section sets update_method: rebase', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    expect(raw).toContain('rebase');
-  });
-
-  it('global section sets batch_size: 1', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    expect(raw).toContain('batch_size');
-    expect(raw).toMatch(/batch_size:\s*1/);
-  });
-
-  it('global section sets speculative_checks: 1', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    expect(raw).toContain('speculative_checks');
-    expect(raw).toMatch(/speculative_checks:\s*1/);
-  });
-
-  it('global section sets allow_inplace_checks: true', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    expect(raw).toMatch(/allow_inplace_checks:\s*true/);
-  });
-
-  it('check-success-or-neutral appears for required CI checks', () => {
-    const raw = readFileSync(TEMPLATE_PATH, 'utf-8');
-    // The template should reference check-success or equivalent
-    expect(raw).toMatch(/check-success|success-or-neutral|check.*neutral/i);
+  it('template documents the comment-out phase-rollout mechanism', () => {
+    // The header explains how to enable a queue; failing this assertion
+    // means the explanatory comments were dropped, which would orphan
+    // operators trying to roll out a queue.
+    expect(raw).toMatch(/phase[- ]rollout/i);
+    expect(raw).toMatch(/uncomment/i);
   });
 });
