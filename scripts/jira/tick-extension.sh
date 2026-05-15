@@ -79,7 +79,7 @@ def state_index(s):
 # uppercase letters or digits (NO underscores; Atlassian rejects them in
 # project keys). Aligned across check-plan.sh step 5.5 +
 # lib.sh:extract_ticket_from_branch per issue #67.
-BRANCH_RE = re.compile(r"^(?:plan|feat|fix|chore|design|docs|test)/([A-Z][A-Z0-9]*-\d+)-")
+BRANCH_RE = re.compile(r"^(?:plan|feat|fix|chore|design|docs|test|infra)/([A-Z][A-Z0-9]*-\d+)-")
 
 def expected_state(pr):
     if pr.get("merged") or pr.get("state") == "MERGED":
